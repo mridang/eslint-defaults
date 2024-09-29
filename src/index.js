@@ -151,14 +151,6 @@ module.exports = {
           },
         },
       },
-      // {
-      //   files: ['**/*.js'],
-      //   ...xssPlugin.configs.recommended,
-      // },
-      // {
-      //   files: ['**/*.ts'],
-      //   ...xssPlugin.configs.recommended,
-      // },
       {
         files: ['**/*.js'],
         rules: jsPlugin.configs.recommended.rules,
