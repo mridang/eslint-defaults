@@ -1,3 +1,8 @@
 const mridangPlugin = require('./src/index');
 
-module.exports = [...mridangPlugin.configs.recommended];
+module.exports = [
+  {
+    ignores: ['test/fixtures'],
+  },
+  ...mridangPlugin.configs.recommended,
+];
