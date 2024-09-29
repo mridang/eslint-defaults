@@ -15,7 +15,6 @@ const typescriptPlugin = require('@typescript-eslint/eslint-plugin');
 const xssPlugin = require('eslint-plugin-no-unsanitized');
 const path = require('path');
 
-console.log(xssPlugin.configs.recommended);
 module.exports = {
   meta: {
     name: '@mridang/eslint-defaults',
