@@ -1,3 +1,3 @@
 module.exports = {
-  entry: ['src/index.ts'],
+  entry: ['src/index.js'],
 };
