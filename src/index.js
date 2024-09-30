@@ -13,6 +13,7 @@ const importPlugin = require('eslint-plugin-import');
 const perfectionistPlugin = require('eslint-plugin-perfectionist');
 const typescriptPlugin = require('@typescript-eslint/eslint-plugin');
 const xssPlugin = require('eslint-plugin-no-unsanitized');
+const cypressPlugin = require('eslint-plugin-cypress/flat');
 const path = require('path');
 
 module.exports = {
@@ -154,6 +155,7 @@ module.exports = {
         files: ['**/*.js'],
         rules: jsPlugin.configs.recommended.rules,
       },
+      cypressPlugin.configs.recommended,
       xssPlugin.configs.recommended,
       jsonPlugin.configs.recommended,
       ...markdownPlugin.configs.recommended,
