@@ -15,6 +15,7 @@ const typescriptPlugin = require('@typescript-eslint/eslint-plugin');
 const xssPlugin = require('eslint-plugin-no-unsanitized');
 const cypressPlugin = require('eslint-plugin-cypress/flat');
 const path = require('path');
+const fs = require('fs');
 
 module.exports = {
   meta: {
@@ -51,7 +52,12 @@ module.exports = {
         languageOptions: {
           parser: typescriptParser,
           parserOptions: {
-            project: path.join(process.cwd(), 'tsconfig.jest.json'),
+            project: path.join(
+              process.cwd(),
+              fs.existsSync(path.join(process.cwd(), 'tsconfig.jest.json'))
+                ? 'tsconfig.jest.json'
+                : 'tsconfig.json',
+            ),
             ...reactPlugin.configs['jsx-runtime'].parserOptions,
           },
           globals: {
