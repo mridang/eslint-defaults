@@ -1,8 +1,8 @@
-A plugin for eslint that has an opinionated set of linting rules for all the 
+A plugin for eslint that has an opinionated set of linting rules for all the
 @mridang scoped packages.
 
 > [!NOTE]
-> This plugin has only been tested with the ESlint 8 and the new flat 
+> This plugin has only been tested with the ESlint 8 and the new flat
 > configuration approach.
 
 ## Installation
@@ -18,9 +18,7 @@ And then add the plugin to your `eslint.config.js` file.
 ```js
 const mridangPlugin = require('@mridang/eslint-defaults');
 
-module.exports = [
-    ...mridangPlugin.configs.recommended
-];
+module.exports = [...mridangPlugin.configs.recommended];
 ```
 
 The example above shows this plugin can be used when the new flat configuration
