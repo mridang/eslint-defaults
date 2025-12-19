@@ -8,6 +8,7 @@ node_modules
 
 # Version control directories
 .git
+.devbox
 
 # Logs
 *.log
@@ -28,4 +29,3 @@ node_modules
 *.jpeg
 *.gif
 *.svg
-
