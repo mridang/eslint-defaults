@@ -1,8 +1,5 @@
 module.exports = {
-  entry: ['src/index.js'],
+  entry: ['src/index.ts'],
   ignore: ['test/fixtures/**'],
-  ignoreDependencies: [
-    'eslint-import-resolver-typescript',
-    '@semantic-release/*',
-  ],
+  ignoreDependencies: ['@semantic-release/*', 'eslint-plugin-svelte'],
 };
