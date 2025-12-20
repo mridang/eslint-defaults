@@ -1,6 +1,5 @@
-const packageJson = require('./package.json');
-
-module.exports = {
+// noinspection JSUnusedGlobalSymbols
+export default {
   branches: ['master'],
   plugins: [
     '@semantic-release/commit-analyzer',
@@ -29,5 +28,5 @@ module.exports = {
       },
     ],
   ],
-  repositoryUrl: packageJson.repository.url,
+  repositoryUrl: 'git+https://github.com/mridang/eslint-defaults.git',
 };
