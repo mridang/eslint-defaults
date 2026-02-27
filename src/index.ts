@@ -222,6 +222,12 @@ const recommended: Linter.Config[] = [
   },
   ...jsonConfigs,
   ...ymlPlugin.configs['flat/standard'],
+  {
+    files: ['*.yaml', '**/*.yaml', '*.yml', '**/*.yml'],
+    rules: {
+      'yml/quotes': ['error', { prefer: 'single' }],
+    },
+  },
   ...tomlPlugin.configs['flat/standard'],
   ...htmlRecommended,
   {
