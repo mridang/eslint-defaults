@@ -133,6 +133,7 @@ const jsonConfigs: Linter.Config[] = [
 const recommended: Linter.Config[] = [
   {
     ignores: [
+      'build/**',
       'dist/**',
       'node_modules/**',
       '.serverless',
