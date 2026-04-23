@@ -233,10 +233,7 @@ const recommended: Linter.Config[] = [
   {
     ...cssRecommended,
     files: ['**/*.css', '**/*.scss', '**/*.sass', '**/*.less'],
-    languageOptions: {
-      ...(cssRecommended.languageOptions || {}),
-      parser: cssPlugin.languages.css as unknown as Linter.Parser,
-    },
+    language: 'css/css',
   },
   cypressPlugin.configs.recommended,
   xssPlugin.configs.recommended,
