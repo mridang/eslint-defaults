@@ -1,10 +1,6 @@
 import { minimatch } from 'minimatch';
 
-export type PatternInput =
-  | string
-  | string[]
-  | Array<string | string[]>
-  | undefined;
+type PatternInput = string | string[] | Array<string | string[]> | undefined;
 
 /**
  * Determines whether a path matches any file glob patterns. Accepts nested

@@ -197,10 +197,17 @@ const recommended: Linter.Config[] = [
     },
   },
   {
+    files: ['**/*.d.ts', '**/*.d.mts', '**/*.d.cts'],
+    rules: {
+      '@typescript-eslint/triple-slash-reference': 'off',
+    },
+  },
+  {
     files: ['**/*.js', '**/*.jsx', '**/*.mjs', '**/*.cjs'],
     languageOptions: {
       globals: sharedGlobals,
       sourceType: 'module',
+      ecmaVersion: 'latest',
     },
     plugins: reactPlugins,
     rules: jsRules,
