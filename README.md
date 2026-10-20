@@ -52,6 +52,7 @@ Once installed, point your flat config at the recommended export and you’re go
 The Tailwind rules follow the version of `tailwindcss` that resolves from the directory ESLint runs in.
 
 - Tailwind 4: the 4.x plugin is used, and it is pointed at your CSS entry file (the one that has `@import "tailwindcss"`) when that file is in one of the usual places, such as `src/app/globals.css`. If yours lives elsewhere, set `settings.tailwindcss.cssConfigPath` and enable the `tailwindcss/*` rules yourself. When no entry file is found, the plugin is registered but none of its rules are turned on.
+- Tailwind 4 also learns your own classes: the `.css` files in your project (not `node_modules`, build output or folders your root `.gitignore` names) are scanned for class selectors and `@utility` names, and those are passed to `tailwindcss/no-custom-classname` as its `whitelist`, as the 3.x plugin's `cssFiles` setting did. A class that is neither Tailwind's nor defined in your CSS is still reported. Classes defined only in a CSS-in-JS string, an inline `<style>` or a third-party stylesheet are not seen; add them to the rule's `whitelist` in your own config.
 - Tailwind 3: the 3.x plugin is used and reads your `tailwind.config` as before.
 - No Tailwind, or a version that cannot be read: no Tailwind rules are registered.
 

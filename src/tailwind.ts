@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import { projectCssWhitelist } from './css-classes.js';
 import { normalizeConfig } from './utils.js';
 
 /** What the Tailwind lint plugin contributes to a project: nothing, or a plugin with its rules and settings. */
@@ -112,6 +113,38 @@ const V4_DISABLED_RULES: Linter.RulesRecord = {
   'tailwindcss/no-unnecessary-arbitrary-value': 'off',
 };
 
+/** The 4.x rule that reports every class Tailwind does not know, including the project's own. */
+const NO_CUSTOM_CLASSNAME = 'tailwindcss/no-custom-classname';
+
+/**
+ * Teach `no-custom-classname` the classes the project defines in its own CSS,
+ * as the 3.x plugin's `cssFiles` setting did, so only a class that is neither
+ * Tailwind's nor the project's (a typo) is reported. The severity and any
+ * options the plugin recommends are kept; the rule is never switched off.
+ */
+function withProjectClasses(
+  rules: Readonly<Linter.RulesRecord>,
+  cwd: string,
+): Readonly<Linter.RulesRecord> {
+  const setting = rules[NO_CUSTOM_CLASSNAME];
+  if (setting === undefined) return rules;
+  const whitelist = projectCssWhitelist(cwd);
+  if (whitelist.length === 0) return rules;
+  const [severity, options] = Array.isArray(setting)
+    ? [setting[0], (setting[1] ?? {}) as { whitelist?: string[] }]
+    : [setting, {}];
+  return {
+    ...rules,
+    [NO_CUSTOM_CLASSNAME]: [
+      severity,
+      {
+        ...options,
+        whitelist: [...new Set([...(options.whitelist ?? []), ...whitelist])],
+      },
+    ],
+  };
+}
+
 /** The Tailwind 3 plugin's shared settings: how it finds class names in our helpers. */
 const V3_SETTINGS = {
   tailwindcss: {
@@ -131,6 +164,8 @@ const V3_SETTINGS = {
  *   The 3.x plugin cannot read a Tailwind 4 project (there is no config file,
  *   the theme lives in CSS), and re-resolves its config for every file, which
  *   costs gigabytes and minutes on a real project.
+ *   The classes the project's own CSS defines are whitelisted for
+ *   `no-custom-classname`, which the 4.x plugin would otherwise flag.
  */
 export function tailwindSupport(cwd: string = process.cwd()): TailwindSupport {
   const major = tailwindMajorVersion(cwd);
@@ -148,7 +183,10 @@ export function tailwindSupport(cwd: string = process.cwd()): TailwindSupport {
   return {
     plugin: tailwindV4 as ESLint.Plugin,
     rules: cssConfigPath
-      ? { ...recommendedRules(tailwindV4), ...V4_DISABLED_RULES }
+      ? withProjectClasses(
+          { ...recommendedRules(tailwindV4), ...V4_DISABLED_RULES },
+          cwd,
+        )
       : {},
     settings: {
       tailwindcss: {
