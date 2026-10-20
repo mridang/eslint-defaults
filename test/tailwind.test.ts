@@ -164,4 +164,43 @@ describe('tailwindSupport', () => {
       },
     });
   });
+
+  it('whitelists the classes the project CSS defines on no-custom-classname, keeping its severity', () => {
+    const dir = project({
+      tailwindVersion: '4.3.1',
+      css: {
+        'src/app/globals.css':
+          '@import "tailwindcss";\n.card { x: y }\n@utility focus-ring { x: y }',
+        'src/components/panel.css': '.panel.t-lead { x: y }',
+        'node_modules/lib/lib.css': '.dep { x: y }',
+      },
+    });
+    const { rules } = tailwindSupport(dir);
+    const setting = rules['tailwindcss/no-custom-classname'];
+    expect(setting).toEqual([
+      'warn',
+      { whitelist: ['card', 'focus-ring', 'panel', 't-lead'] },
+    ]);
+  });
+
+  it('leaves no-custom-classname as the plugin ships it when the project CSS defines no classes', () => {
+    const { rules } = tailwindSupport(
+      project({
+        tailwindVersion: '4.3.1',
+        css: { 'src/app/globals.css': '@import "tailwindcss";' },
+      }),
+    );
+    expect(rules['tailwindcss/no-custom-classname']).toBe('warn');
+  });
+
+  it('does not scan CSS for a Tailwind 3 project or one without Tailwind', () => {
+    const css = { 'src/app/globals.css': '.card { x: y }' };
+    const v3 = tailwindSupport(project({ tailwindVersion: '3.4.19', css }));
+    expect(v3.rules['tailwindcss/no-custom-classname']).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ whitelist: ['card'] }),
+      ]),
+    );
+    expect(tailwindSupport(project({ css })).rules).toEqual({});
+  });
 });
