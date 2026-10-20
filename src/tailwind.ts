@@ -8,7 +8,7 @@ import path from 'node:path';
 import { normalizeConfig } from './utils.js';
 
 /** What the Tailwind lint plugin contributes to a project: nothing, or a plugin with its rules and settings. */
-export interface TailwindSupport {
+interface TailwindSupport {
   /** The plugin to register under the `tailwindcss` name, if the project uses Tailwind. */
   readonly plugin?: ESLint.Plugin;
   /** The plugin's recommended rules (empty when the project does not use Tailwind). */
@@ -86,6 +86,32 @@ function recommendedRules(plugin: {
   );
 }
 
+/** Helpers the 4.x plugin scans for class names: its own defaults, plus the ones this preset's projects use. */
+const V4_FUNCTIONS = [
+  'classnames',
+  'classNames',
+  'clsx',
+  'cn',
+  'createTheme',
+  'ctl',
+  'cva',
+  'tv',
+  'tw',
+  'twJoin',
+  'twMerge',
+] as const;
+
+/**
+ * Rules switched off for the 4.x plugin. `no-unnecessary-arbitrary-value`
+ * reads unitless arbitrary values as spacing steps and suggests (and autofixes
+ * to) classes that mean something else: `leading-[1.3]` becomes `leading-1.3`
+ * (0.325rem), `tracking-[-0.025em]` becomes `-tracking-wide`. Its safe cases
+ * are covered by `enforces-canonical-classname`.
+ */
+const V4_DISABLED_RULES: Linter.RulesRecord = {
+  'tailwindcss/no-unnecessary-arbitrary-value': 'off',
+};
+
 /** The Tailwind 3 plugin's shared settings: how it finds class names in our helpers. */
 const V3_SETTINGS = {
   tailwindcss: {
@@ -121,11 +147,13 @@ export function tailwindSupport(cwd: string = process.cwd()): TailwindSupport {
   const cssConfigPath = findTailwindCssEntry(cwd);
   return {
     plugin: tailwindV4 as ESLint.Plugin,
-    rules: cssConfigPath ? recommendedRules(tailwindV4) : {},
+    rules: cssConfigPath
+      ? { ...recommendedRules(tailwindV4), ...V4_DISABLED_RULES }
+      : {},
     settings: {
       tailwindcss: {
         ...(cssConfigPath ? { cssConfigPath } : {}),
-        functions: ['twMerge', 'createTheme', 'cn', 'clsx', 'cva'],
+        functions: V4_FUNCTIONS,
       },
     },
   };

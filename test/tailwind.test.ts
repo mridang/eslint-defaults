@@ -41,6 +41,12 @@ describe('tailwindMajorVersion', () => {
   it('is undefined for a project without Tailwind', () => {
     expect(tailwindMajorVersion(project({}))).toBeUndefined();
   });
+
+  it('is undefined when the installed version cannot be read', () => {
+    expect(
+      tailwindMajorVersion(project({ tailwindVersion: 'not-a-version' })),
+    ).toBeUndefined();
+  });
 });
 
 describe('findTailwindCssEntry', () => {
@@ -101,8 +107,61 @@ describe('tailwindSupport', () => {
     });
   });
 
+  it('keeps the 4.x rule that suggests wrong classes for unitless values switched off', () => {
+    const support = tailwindSupport(
+      project({
+        tailwindVersion: '4.3.1',
+        css: { 'src/app/globals.css': '@import "tailwindcss";' },
+      }),
+    );
+    expect(support.rules['tailwindcss/no-unnecessary-arbitrary-value']).toBe(
+      'off',
+    );
+    expect(support.rules['tailwindcss/enforces-canonical-classname']).toBe(
+      'warn',
+    );
+  });
+
   it('turns the rules off for a Tailwind 4 project whose CSS entry it cannot find, instead of guessing', () => {
     const support = tailwindSupport(project({ tailwindVersion: '4.3.1' }));
     expect(support.rules).toEqual({});
+  });
+
+  it('registers different plugins for Tailwind 3 and Tailwind 4', () => {
+    const v4Dir = project({
+      tailwindVersion: '4.3.1',
+      css: { 'src/app/globals.css': '@import "tailwindcss";' },
+    });
+    const v3 = tailwindSupport(project({ tailwindVersion: '3.4.19' }));
+    const v4 = tailwindSupport(v4Dir);
+    expect(v3.plugin).not.toBe(v4.plugin);
+  });
+
+  it('contributes nothing to a project whose Tailwind version cannot be read', () => {
+    const support = tailwindSupport(project({ tailwindVersion: 'garbage' }));
+    expect(support.plugin).toBeUndefined();
+    expect(support.rules).toEqual({});
+  });
+
+  it('keeps the 4.x plugin default helpers and adds the ones the preset uses', () => {
+    const support = tailwindSupport(
+      project({
+        tailwindVersion: '4.3.1',
+        css: { 'src/app/globals.css': '@import "tailwindcss";' },
+      }),
+    );
+    expect(support.settings).toMatchObject({
+      tailwindcss: {
+        functions: expect.arrayContaining([
+          'clsx',
+          'cn',
+          'cva',
+          'tv',
+          'twJoin',
+          'twMerge',
+          'createTheme',
+        ]),
+      },
+    });
   });
 });
