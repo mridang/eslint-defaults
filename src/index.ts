@@ -5,7 +5,6 @@ import globals from 'globals';
 import jsonLanguagePlugin from '@eslint/json';
 import markdownPlugin from '@eslint/markdown';
 import jsPlugin from '@eslint/js';
-import tailwindcssPlugin from 'eslint-plugin-tailwindcss';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
@@ -22,6 +21,7 @@ import ymlPlugin from 'eslint-plugin-yml';
 import tomlPlugin from 'eslint-plugin-toml';
 import path from 'path';
 import fs from 'fs';
+import { tailwindSupport } from './tailwind.js';
 import { normalizeConfig, normalizeConfigArray } from './utils.js';
 import { createRequire } from 'node:module';
 
@@ -78,15 +78,12 @@ const sharedGlobals = {
   ...globals.browser,
   ...globals.jasmine,
 };
-const tailwindSettings = {
-  tailwindcss: {
-    callees: ['twMerge', 'createTheme'],
-    classRegex: '^(class(Name)|theme)?$',
-  },
-};
+/** The Tailwind lint support for the project being linted: none, the 3.x or the 4.x plugin. */
+const tailwind = tailwindSupport();
+const tailwindSettings = tailwind.settings;
 const reactPlugins = {
   prettier: prettierPlugin,
-  tailwindcss: tailwindcssPlugin,
+  ...(tailwind.plugin ? { tailwindcss: tailwind.plugin } : {}),
   'testing-library': testingLibraryPlugin,
   react: reactPlugin,
   'react-hooks': reactHooksPlugin,
@@ -100,7 +97,7 @@ const tsPlugins = {
 };
 const reactRuleBase: Linter.RulesRecord = {
   ...jsPlugin.configs.recommended.rules,
-  ...tailwindcssPlugin.configs.recommended.rules,
+  ...tailwind.rules,
   ...testingLibraryPlugin.configs.react.rules,
   ...reactPlugin.configs.recommended.rules,
   ...reactPlugin.configs['jsx-runtime'].rules,
