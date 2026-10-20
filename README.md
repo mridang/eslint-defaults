@@ -11,7 +11,7 @@ It ships a batteries-included lint setup for JS/TS, JSON/JSONC/JSON5, Markdown, 
 - [`eslint-plugin-prettier`](https://www.npmjs.com/package/eslint-plugin-prettier)
 - [`eslint-plugin-json`](https://www.npmjs.com/package/eslint-plugin-json) and [`eslint-plugin-jsonc`](https://www.npmjs.com/package/eslint-plugin-jsonc)
 - [`eslint-plugin-markdown`](https://www.npmjs.com/package/eslint-plugin-markdown)
-- [`eslint-plugin-tailwindcss`](https://www.npmjs.com/package/eslint-plugin-tailwindcss)
+- [`eslint-plugin-tailwindcss`](https://www.npmjs.com/package/eslint-plugin-tailwindcss), chosen by the Tailwind CSS version your project has installed (see [Tailwind CSS](#tailwind-css))
 - [`eslint-plugin-testing-library`](https://www.npmjs.com/package/eslint-plugin-testing-library)
 - [`eslint-plugin-react`](https://www.npmjs.com/package/eslint-plugin-react) and [`eslint-plugin-react-hooks`](https://www.npmjs.com/package/eslint-plugin-react-hooks)
 - [`eslint-plugin-jsx-a11y`](https://www.npmjs.com/package/eslint-plugin-jsx-a11y)
@@ -46,6 +46,14 @@ The example above uses the ESLint 9 flat configuration. Legacy config is not sup
 ## Usage
 
 Once installed, point your flat config at the recommended export and you’re good to go. Treat it like any other shareable config; add your own rules and overrides as needed.
+
+### Tailwind CSS
+
+The Tailwind rules follow the version of `tailwindcss` that resolves from the directory ESLint runs in.
+
+- Tailwind 4: the 4.x plugin is used, and it is pointed at your CSS entry file (the one that has `@import "tailwindcss"`) when that file is in one of the usual places, such as `src/app/globals.css`. If yours lives elsewhere, set `settings.tailwindcss.cssConfigPath` and enable the `tailwindcss/*` rules yourself. When no entry file is found, the plugin is registered but none of its rules are turned on.
+- Tailwind 3: the 3.x plugin is used and reads your `tailwind.config` as before.
+- No Tailwind, or a version that cannot be read: no Tailwind rules are registered.
 
 ### Adding support for a framework
 
