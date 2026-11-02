@@ -11,6 +11,7 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 import importPlugin from 'eslint-plugin-import';
+import unicornPlugin from 'eslint-plugin-unicorn';
 import perfectionistPlugin from 'eslint-plugin-perfectionist';
 import typescriptPlugin from '@typescript-eslint/eslint-plugin';
 import xssPlugin from 'eslint-plugin-no-unsanitized';
@@ -91,6 +92,7 @@ const reactPlugins = {
   'jsx-a11y': fixupPluginRules(jsxA11yPlugin as unknown as ESLint.Plugin),
   import: fixupPluginRules(importPlugin as unknown as ESLint.Plugin),
   perfectionist: perfectionistPlugin,
+  unicorn: unicornPlugin,
 };
 const tsPlugins = {
   ...reactPlugins,
@@ -105,6 +107,7 @@ const reactRuleBase: Linter.RulesRecord = {
   ...reactHooksPlugin.configs.recommended.rules,
   ...jsxA11yPlugin.configs.recommended.rules,
   ...importPlugin.configs.recommended.rules,
+  ...unicornPlugin.configs.all.rules,
   'react/prop-types': 'off',
 };
 const tsRules: Linter.RulesRecord = {
