@@ -29,7 +29,7 @@
   "description": "A set of sane default for the NestJS framework",
   "private": false,
   "peerDependencies": {
-    "eslint": "^10.0.0"
+    "eslint": "^10.4.0"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -85,6 +85,7 @@
     "eslint-plugin-tailwindcss-v3": "npm:eslint-plugin-tailwindcss@^3.18.3",
     "eslint-plugin-testing-library": "^7.15.1",
     "eslint-plugin-toml": "^0.12.0",
+    "eslint-plugin-unicorn": "^79.0.0",
     "eslint-plugin-yml": "^1.19.1",
     "globals": "^16.5.0"
   },
