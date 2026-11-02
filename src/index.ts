@@ -21,6 +21,7 @@ import htmlParser from '@html-eslint/parser';
 import cssPlugin from '@eslint/css';
 import ymlPlugin from 'eslint-plugin-yml';
 import tomlPlugin from 'eslint-plugin-toml';
+import packageJsonPlugin from 'eslint-plugin-package-json';
 import path from 'path';
 import fs from 'fs';
 import { tailwindSupport } from './tailwind.js';
@@ -142,7 +143,6 @@ const recommended: Linter.Config[] = [
       '.devbox/**',
       'devbox.json',
       'package-lock.json',
-      'package.json',
       'README.md',
       'tsconfig.json',
       'tsconfig.*.json',
@@ -248,6 +248,7 @@ const recommended: Linter.Config[] = [
   xssPlugin.configs.recommended,
   ...markdownRecommended,
   ...markdownProcessor,
+  { ...packageJsonPlugin.configs.recommended, language: '@/js' },
 ];
 
 const config: ESLint.Plugin = {
