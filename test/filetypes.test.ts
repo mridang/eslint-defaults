@@ -86,3 +86,29 @@ describe('unicorn rules', () => {
     );
   });
 });
+
+describe('package.json linting', () => {
+  const lint = async (text: string): Promise<string[]> => {
+    const eslint = new ESLint({ cwd: process.cwd() });
+    const [result] = await eslint.lintText(text, { filePath: 'package.json' });
+    return result.messages.map((message) => message.ruleId ?? '');
+  };
+
+  it('reports missing metadata fields', async () => {
+    const ruleIds = await lint('{"version":"1.0.0"}');
+
+    expect(ruleIds).toEqual(
+      expect.arrayContaining([
+        'package-json/require-description',
+        'package-json/require-license',
+        'package-json/require-repository',
+      ]),
+    );
+  });
+
+  it('reports scripts that are out of order', async () => {
+    const ruleIds = await lint('{"scripts":{"test":"a","build":"b"}}');
+
+    expect(ruleIds).toContain('package-json/sort-collections');
+  });
+});
