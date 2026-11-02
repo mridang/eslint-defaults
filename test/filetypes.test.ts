@@ -1,3 +1,4 @@
+import { ESLint } from 'eslint';
 import eslintConfig from '../eslint.config.mjs';
 import { matchesFileGlob, matchesIgnores } from './utils/patterns.js';
 
@@ -55,5 +56,20 @@ describe('filetype coverage', () => {
     });
 
     expect(isCovered).toBe(true);
+  });
+});
+
+describe('ESLint 10 plugin compatibility', () => {
+  it('runs the react, import and jsx-a11y rules without crashing', async () => {
+    const eslint = new ESLint({ cwd: process.cwd() });
+    const [result] = await eslint.lintText(
+      "import missing from './does-not-exist.js';\nexport default missing;\n",
+      { filePath: 'src/app.js' },
+    );
+
+    expect(result.messages.filter((message) => message.fatal)).toEqual([]);
+    expect(result.messages.map((message) => message.ruleId)).toContain(
+      'import/no-unresolved',
+    );
   });
 });

@@ -1,4 +1,5 @@
 import type { ESLint, Linter } from 'eslint';
+import { fixupPluginRules } from '@eslint/compat';
 import typescriptParser from '@typescript-eslint/parser';
 import prettierPlugin from 'eslint-plugin-prettier';
 import globals from 'globals';
@@ -85,10 +86,10 @@ const reactPlugins = {
   prettier: prettierPlugin,
   ...(tailwind.plugin ? { tailwindcss: tailwind.plugin } : {}),
   'testing-library': testingLibraryPlugin,
-  react: reactPlugin,
+  react: fixupPluginRules(reactPlugin as unknown as ESLint.Plugin),
   'react-hooks': reactHooksPlugin,
-  'jsx-a11y': jsxA11yPlugin,
-  import: importPlugin,
+  'jsx-a11y': fixupPluginRules(jsxA11yPlugin as unknown as ESLint.Plugin),
+  import: fixupPluginRules(importPlugin as unknown as ESLint.Plugin),
   perfectionist: perfectionistPlugin,
 };
 const tsPlugins = {
