@@ -77,12 +77,12 @@ describe('ESLint 10 plugin compatibility', () => {
 describe('unicorn rules', () => {
   it('enables the unicorn plugin for scripts', async () => {
     const eslint = new ESLint({ cwd: process.cwd() });
-    const [result] = await eslint.lintText('export const value = null;\n', {
+    const [result] = await eslint.lintText('process.exit(1);\n', {
       filePath: 'src/value.js',
     });
 
     expect(result.messages.map((message) => message.ruleId)).toContain(
-      'unicorn/no-null',
+      'unicorn/no-process-exit',
     );
   });
 });

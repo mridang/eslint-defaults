@@ -126,7 +126,7 @@ function withProjectClasses(
   rules: Readonly<Linter.RulesRecord>,
   cwd: string,
 ): Readonly<Linter.RulesRecord> {
-  const setting = rules[NO_CUSTOM_CLASSNAME];
+  const setting = rules[NO_CUSTOM_CLASSNAME] as Linter.RuleEntry | undefined;
   if (setting === undefined) return rules;
   const whitelist = projectCssWhitelist(cwd);
   if (whitelist.length === 0) return rules;

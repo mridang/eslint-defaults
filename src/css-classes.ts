@@ -33,7 +33,7 @@ function gitignoredDirectories(root: string): ReadonlySet<string> {
       lines
         .split(/\r?\n/)
         .map((line) => line.trim().replace(/^\/+|\/+$/g, ''))
-        .filter((line) => line && !/^[#!]|[*?[\]/]/.test(line)),
+        .filter((line) => line && !/(?:^[#!])|[*?[\]/]/.test(line)),
     );
   } catch {
     return new Set();

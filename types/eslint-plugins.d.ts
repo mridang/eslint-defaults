@@ -5,4 +5,6 @@ declare module 'eslint-plugin-tailwindcss-v3';
 declare module 'eslint-plugin-jsx-a11y';
 declare module 'eslint-plugin-import';
 declare module 'eslint-plugin-no-unsanitized';
-declare module 'eslint-plugin-cypress/flat';
+declare module 'eslint-plugin-cypress';
+declare module 'eslint-plugin-promise';
+declare module 'eslint-plugin-github';

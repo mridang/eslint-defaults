@@ -15,16 +15,22 @@ import unicornPlugin from 'eslint-plugin-unicorn';
 import perfectionistPlugin from 'eslint-plugin-perfectionist';
 import typescriptPlugin from '@typescript-eslint/eslint-plugin';
 import xssPlugin from 'eslint-plugin-no-unsanitized';
-import cypressPlugin from 'eslint-plugin-cypress/flat';
+import cypressPlugin from 'eslint-plugin-cypress';
 import htmlEslintPlugin from '@html-eslint/eslint-plugin';
 import htmlParser from '@html-eslint/parser';
 import cssPlugin from '@eslint/css';
 import ymlPlugin from 'eslint-plugin-yml';
 import tomlPlugin from 'eslint-plugin-toml';
 import packageJsonPlugin from 'eslint-plugin-package-json';
-import path from 'path';
-import fs from 'fs';
+import path from 'node:path';
+import fs from 'node:fs';
 import { tailwindSupport } from './tailwind.js';
+import {
+  hardenedPlugins,
+  hardenedRules,
+  hardenedSettings,
+  unicornExclusions,
+} from './hardened.js';
 import { normalizeConfig, normalizeConfigArray } from './utils.js';
 import { createRequire } from 'node:module';
 
@@ -44,8 +50,8 @@ const htmlRecommended =
   htmlRecommendedArray.length > 0
     ? htmlRecommendedArray.map((cfg) => ({ ...cfg }))
     : [{} satisfies Linter.Config];
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as {
+const loadJson = createRequire(import.meta.url);
+const packageJson = loadJson('../package.json') as {
   name: string;
   version: string;
 };
@@ -84,7 +90,9 @@ const sharedGlobals = {
 /** The Tailwind lint support for the project being linted: none, the 3.x or the 4.x plugin. */
 const tailwind = tailwindSupport();
 const tailwindSettings = tailwind.settings;
+const hardened = hardenedRules();
 const reactPlugins = {
+  ...hardenedPlugins,
   prettier: prettierPlugin,
   ...(tailwind.plugin ? { tailwindcss: tailwind.plugin } : {}),
   'testing-library': testingLibraryPlugin,
@@ -109,16 +117,22 @@ const reactRuleBase: Linter.RulesRecord = {
   ...jsxA11yPlugin.configs.recommended.rules,
   ...importPlugin.configs.recommended.rules,
   ...unicornPlugin.configs.all.rules,
+  ...Object.fromEntries(
+    Object.keys(unicornExclusions).map((name) => [`unicorn/${name}`, 'off']),
+  ),
   'react/prop-types': 'off',
 };
 const tsRules: Linter.RulesRecord = {
   ...reactRuleBase,
   ...typescriptPlugin.configs.recommended.rules,
   '@typescript-eslint/no-floating-promises': 'error',
+  ...hardened.untyped,
+  ...hardened.typed,
   ...prettierRules,
 };
 const jsRules: Linter.RulesRecord = {
   ...reactRuleBase,
+  ...hardened.untyped,
   ...prettierRules,
 };
 const jsonConfigs: Linter.Config[] = [
@@ -188,6 +202,7 @@ const recommended: Linter.Config[] = [
     rules: tsRules,
     settings: {
       ...tailwindSettings,
+      ...hardenedSettings,
       react: {
         version: 'detect',
         pragma: 'React',
@@ -214,6 +229,7 @@ const recommended: Linter.Config[] = [
     rules: jsRules,
     settings: {
       ...tailwindSettings,
+      ...hardenedSettings,
       react: {
         version: 'detect',
       },
