@@ -112,3 +112,38 @@ describe('package.json linting', () => {
     expect(ruleIds).toContain('package-json/sort-collections');
   });
 });
+
+describe('shared project settings', () => {
+  const lint = async (text: string, filePath: string): Promise<string[]> => {
+    const eslint = new ESLint({ cwd: process.cwd() });
+    const [result] = await eslint.lintText(text, { filePath });
+    return result.messages.map((message) => message.ruleId ?? 'fatal');
+  };
+
+  it('does not report ambient types as undefined in TypeScript', async () => {
+    expect(
+      await lint('export type Db = D1Database;\n', 'src/db.ts'),
+    ).not.toContain('no-undef');
+  });
+
+  it('resolves the cloudflare:workers runtime module', async () => {
+    expect(
+      await lint(
+        "import { env } from 'cloudflare:workers';\nexport const value = env;\n",
+        'src/worker.ts',
+      ),
+    ).not.toContain('import/no-unresolved');
+  });
+
+  it('accepts Tailwind at-rules in CSS', async () => {
+    expect(
+      await lint('@config "./tailwind.config.js";\n', 'src/app.css'),
+    ).not.toContain('css/no-invalid-at-rules');
+  });
+
+  it('knows the WebExtension globals', async () => {
+    expect(
+      await lint('export const id = chrome.runtime.id;\n', 'src/background.js'),
+    ).not.toContain('no-undef');
+  });
+});

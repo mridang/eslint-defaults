@@ -37,6 +37,12 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'promise',
     plugin: promisePlugin as unknown as ESLint.Plugin,
     excluded: {
+      'prefer-catch': 'Its autofix can change behaviour or break types.',
+      'no-callback-in-promise':
+        'Matches parameter names such as next and err rather than real callbacks.',
+      'no-promise-in-callback':
+        'Matches parameter names such as next and err rather than real callbacks.',
+
       'always-return':
         'Mostly fire-and-forget .then() calls, and a false positive on Cypress chains.',
       'avoid-new':
@@ -52,6 +58,21 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'sonarjs',
     plugin: sonarjsPlugin as unknown as ESLint.Plugin,
     excluded: {
+      'max-lines': NOISY,
+      'function-return-type': NOISY,
+      'strings-comparison': NOISY,
+      'different-types-comparison': NOISY,
+      'pseudo-random': NOISY,
+      'no-inconsistent-returns': NOISY,
+      'bool-param-default': NOISY,
+      'no-inverted-boolean-check': NOISY,
+      'no-invariant-returns': NOISY,
+      'assertions-in-tests': NOISY,
+      'publicly-writable-directories': NOISY,
+      'public-static-readonly': NOISY,
+      'destructuring-assignment-syntax':
+        'Conflicts with unicorn/no-unreadable-array-destructuring.',
+
       'void-use':
         'Conflicts with the void idiom no-floating-promises relies on.',
       'file-name-differ-from-class': 'Style opinion.',
@@ -92,6 +113,10 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'jsdoc',
     plugin: jsdocPlugin as unknown as ESLint.Plugin,
     excluded: {
+      'no-unnecessary-type-assertion':
+        'typescript-eslint has the same rule, and this one needs its own parser setup.',
+      'no-multi-asterisks': 'Its autofix can change behaviour or break types.',
+
       'require-jsdoc': DEMANDS_DOCS,
       'require-param': DEMANDS_DOCS,
       'require-param-description': DEMANDS_DOCS,
@@ -140,6 +165,14 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'github',
     plugin: githubPlugin as unknown as ESLint.Plugin,
     excluded: {
+      'no-dataset':
+        'Conflicts with unicorn/dom-node-dataset, which autofixes back to .dataset.',
+      'a11y-no-title-attribute': 'Flags deliberate hover tooltips.',
+      'a11y-no-visually-hidden-interactive-element':
+        'Flags the standard sr-only skip link that appears on focus.',
+      'a11y-svg-has-accessible-name': 'Flags decorative and placeholder icons.',
+      'no-blur': 'Style opinion.',
+
       'unescaped-html-literal':
         'Flags every string containing markup, which HTML-generating code needs.',
       'array-foreach': 'Style opinion; forEach is fine.',
@@ -165,6 +198,9 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'n',
     plugin: nPlugin as unknown as ESLint.Plugin,
     excluded: {
+      'no-extraneous-import': 'Cannot follow workspace and nested manifests.',
+      'no-extraneous-require': 'Cannot follow workspace and nested manifests.',
+
       'file-extension-in-import':
         'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
       'no-process-env':
@@ -290,4 +326,28 @@ export const unicornExclusions: Record<string, string> = {
   'no-this-outside-of-class': 'Style opinion or too noisy to adopt.',
   'consistent-destructuring': 'Style opinion or too noisy to adopt.',
   'prefer-code-point': 'Style opinion or too noisy to adopt.',
+  'no-unused-array-method-return':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'no-array-method-this-argument':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'prefer-top-level-await':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'prefer-module': 'Style opinion, a false positive, or an unsafe autofix.',
+  'no-useless-spread': 'Style opinion, a false positive, or an unsafe autofix.',
+  'no-anonymous-default-export':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'prefer-add-event-listener':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'no-empty-file': 'Style opinion, a false positive, or an unsafe autofix.',
+  'prefer-math-min-max':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'require-css-escape':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'better-dom-traversing':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'prefer-includes-over-repeated-comparisons':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'no-unused-properties':
+    'Style opinion, a false positive, or an unsafe autofix.',
+  'no-array-reverse': 'Style opinion, a false positive, or an unsafe autofix.',
 };

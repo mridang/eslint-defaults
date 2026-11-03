@@ -80,12 +80,24 @@ const tsProjectPath = path.join(
     ? 'tsconfig.jest.json'
     : 'tsconfig.json',
 );
+/** The React version for the lint settings: detected when React is installed, fixed otherwise so the plugin stays quiet. */
+const reactVersion = ((): string => {
+  try {
+    createRequire(path.join(process.cwd(), 'package.json')).resolve(
+      'react/package.json',
+    );
+    return 'detect';
+  } catch {
+    return '19.0';
+  }
+})();
 const sharedGlobals = {
   ...globals.node,
   ...globals.es2021,
   ...globals.jest,
   ...globals.browser,
   ...globals.jasmine,
+  ...globals.webextensions,
 };
 /** The Tailwind lint support for the project being linted: none, the 3.x or the 4.x plugin. */
 const tailwind = tailwindSupport();
@@ -126,6 +138,7 @@ const tsRules: Linter.RulesRecord = {
   ...reactRuleBase,
   ...typescriptPlugin.configs.recommended.rules,
   '@typescript-eslint/no-floating-promises': 'error',
+  'no-undef': 'off',
   ...hardened.untyped,
   ...hardened.typed,
   ...prettierRules,
@@ -204,9 +217,10 @@ const recommended: Linter.Config[] = [
       ...tailwindSettings,
       ...hardenedSettings,
       react: {
-        version: 'detect',
+        version: reactVersion,
         pragma: 'React',
       },
+      'import/core-modules': ['cloudflare:workers'],
       'import/resolver': {
         typescript: {},
       },
@@ -231,8 +245,9 @@ const recommended: Linter.Config[] = [
       ...tailwindSettings,
       ...hardenedSettings,
       react: {
-        version: 'detect',
+        version: reactVersion,
       },
+      'import/core-modules': ['cloudflare:workers'],
       'import/resolver': {
         typescript: {},
         node: {
@@ -257,6 +272,11 @@ const recommended: Linter.Config[] = [
   ...htmlRecommended,
   {
     ...cssRecommended,
+    rules: {
+      ...cssRecommended.rules,
+      'css/no-invalid-at-rules': 'off',
+      'css/no-invalid-properties': 'off',
+    },
     files: ['**/*.css', '**/*.scss', '**/*.sass', '**/*.less'],
     language: 'css/css',
   },
