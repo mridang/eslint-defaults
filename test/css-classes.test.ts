@@ -9,7 +9,14 @@ import {
   toWhitelist,
 } from '../src/css-classes.js';
 
-const classes = (css: string): string[] => [...extractClassNames(css)].sort();
+const compareCodeUnits = (a: string, b: string): number => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+};
+
+const classes = (css: string): string[] =>
+  [...extractClassNames(css)].toSorted(compareCodeUnits);
 
 describe('extractClassNames', () => {
   it('reads plain, compound and combined selectors', () => {
@@ -113,6 +120,27 @@ describe('extractClassNames', () => {
   });
 });
 
+describe('extractClassNames on adversarial input', () => {
+  it('reads unmatched brackets and braces like the regex scan did', () => {
+    expect(classes('.a[x .b { c: d } .e[f] .g { h: i }')).toEqual([
+      'a',
+      'b',
+      'e',
+      'g',
+    ]);
+    expect(classes('.a[x[y] .b { c: d }')).toEqual(['a', 'b']);
+    expect(classes('x; .a { } } .b; .c { }')).toEqual(['a', 'c']);
+  });
+
+  it('stays fast on long inputs without a closing bracket or brace', () => {
+    const long = '['.repeat(50_000);
+    const started = Date.now();
+    expect(classes(`.a${long}`)).toEqual([]);
+    expect(classes(`.a { } ${long} .b { }`)).toEqual(['a', 'b']);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
+
 describe('toWhitelist', () => {
   it('keeps plain names as exact entries', () => {
     expect(toWhitelist(['card', 'btn-primary', 'sm:flex', 'w-1/2'])).toEqual([
@@ -152,7 +180,7 @@ describe('findCssFiles and projectCssWhitelist', () => {
     return dir;
   }
 
-  it('finds the project stylesheets and skips dependencies and build output', () => {
+  it('finds the project stylesheets and skips dependencies and build output', async () => {
     const dir = tree({
       'src/app/globals.css': '.a {}',
       'styles/extra.css': '.b {}',
@@ -164,39 +192,47 @@ describe('findCssFiles and projectCssWhitelist', () => {
       '.out/x.css': '.built {}',
       'src/notes.txt': '.nope {}',
     });
-    expect(findCssFiles(dir).map((f) => path.relative(dir, f))).toEqual([
-      'src/app/globals.css',
-      'styles/extra.css',
-    ]);
+    expect((await findCssFiles(dir)).map((f) => path.relative(dir, f))).toEqual(
+      ['src/app/globals.css', 'styles/extra.css'],
+    );
   });
 
-  it('skips folders listed by name in the root .gitignore', () => {
+  it('skips folders listed by name in the root .gitignore', async () => {
     const dir = tree({
       '.gitignore': '# generated\n/generated/\n*.log\n!keep\n',
       'generated/x.css': '.gen {}',
       'src/x.css': '.a {}',
     });
-    expect(findCssFiles(dir).map((f) => path.relative(dir, f))).toEqual([
-      'src/x.css',
-    ]);
+    expect((await findCssFiles(dir)).map((f) => path.relative(dir, f))).toEqual(
+      ['src/x.css'],
+    );
   });
 
-  it('collects the classes of every stylesheet as whitelist entries', () => {
+  it('collects the classes of every stylesheet as whitelist entries', async () => {
     const dir = tree({
       'a.css': '.card { x: y }',
       'b/b.css': '@utility focus-ring { x: y }',
       'node_modules/c.css': '.dep { x: y }',
     });
-    expect(projectCssWhitelist(dir)).toEqual(['card', 'focus-ring']);
+    expect(await projectCssWhitelist(dir)).toEqual(['card', 'focus-ring']);
   });
 
-  it('is empty for a project without CSS', () => {
-    expect(projectCssWhitelist(tree({ 'index.ts': '' }))).toEqual([]);
+  it('is empty for a project without CSS', async () => {
+    expect(await projectCssWhitelist(tree({ 'index.ts': '' }))).toEqual([]);
   });
 
-  it('is empty for a folder that does not exist', () => {
+  it('reads gitignore entries with surrounding slashes', async () => {
+    const dir = tree({
+      '.gitignore': '///tmp///\n/\n',
+      'tmp/x.css': '.gen {}',
+      'src/x.css': '.a {}',
+    });
+    expect(await projectCssWhitelist(dir)).toEqual(['a']);
+  });
+
+  it('is empty for a folder that does not exist', async () => {
     expect(
-      projectCssWhitelist(path.join(os.tmpdir(), 'nope-nope-nope')),
+      await projectCssWhitelist(path.join(os.tmpdir(), 'nope-nope-nope')),
     ).toEqual([]);
   });
 });

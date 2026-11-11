@@ -5,6 +5,18 @@ import { hardenedRules, jsdocTypeRules } from '../src/hardened.js';
 import eslintConfig from '../eslint.config.mjs';
 import { matchesFileGlob, matchesIgnores } from './utils/patterns.js';
 
+const lintMessages = async (text: string, filePath: string) => {
+  const eslint = new ESLint({ cwd: process.cwd() });
+  const [result] = await eslint.lintText(text, { filePath });
+  return result.messages;
+};
+
+const compareCodeUnits = (a: string, b: string): number => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+};
+
 const fileTypeCases = [
   'js',
   'ts',
@@ -195,7 +207,7 @@ function expectedRules(language: Language, typed: boolean): string[] {
   return Object.entries(rules)
     .filter(([, value]) => value !== 'off')
     .map(([name]) => name)
-    .sort();
+    .toSorted(compareCodeUnits);
 }
 
 async function activeRules(
@@ -297,11 +309,7 @@ const DATA_FORMATS: Array<[string, string, string | undefined]> = [
 ];
 
 describe('code is really linted, with no parse errors', () => {
-  const lint = async (text: string, filePath: string) => {
-    const eslint = new ESLint({ cwd: process.cwd() });
-    const [result] = await eslint.lintText(text, { filePath });
-    return result.messages;
-  };
+  const lint = lintMessages;
 
   const sources: Array<[string, string]> = [
     ...[...TYPESCRIPT_EXTENSIONS, ...JAVASCRIPT_EXTENSIONS].map(
@@ -359,12 +367,12 @@ describe('code is really linted, with no parse errors', () => {
       ...JAVASCRIPT_FENCES,
       ...EMBEDDED_EXTENSIONS,
     ])('a %s block is linted', async (fence) => {
-      const body =
-        fence === 'vue' || fence === 'svelte'
-          ? `<script lang="ts">\n${MARKER_CODE}</script>`
-          : fence === 'astro'
-            ? `---\nimport fs from 'fs';\nconsole.log(fs);\n---\n<div />`
-            : MARKER_CODE;
+      let body = MARKER_CODE;
+      if (fence === 'vue' || fence === 'svelte') {
+        body = `<script lang="ts">\n${MARKER_CODE}</script>`;
+      } else if (fence === 'astro') {
+        body = `---\nimport fs from 'fs';\nconsole.log(fs);\n---\n<div />`;
+      }
       const messages = await lint(
         `# Title\n\n\`\`\`${fence}\n${body}\n\`\`\`\n`,
         `docs/guide.${host}`,
@@ -392,11 +400,7 @@ describe('code is really linted, with no parse errors', () => {
 });
 
 describe('embedded formats, MDX and styles', () => {
-  const lint = async (text: string, filePath: string) => {
-    const eslint = new ESLint({ cwd: process.cwd() });
-    const [result] = await eslint.lintText(text, { filePath });
-    return result.messages;
-  };
+  const lint = lintMessages;
   test.each([
     [
       'src/Format.svelte',
@@ -523,7 +527,7 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
   test('ignores route parameter file names', async () => {
     expect(
       JSON.stringify(await ruleOf('src/[id].ts', 'unicorn/filename-case')),
-    ).toContain('[.+\\\\]');
+    ).toContain(String.raw`[.+\\]`);
   });
 
   test('ignores browser globals in the Node compatibility rule', async () => {

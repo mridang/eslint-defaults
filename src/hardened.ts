@@ -55,9 +55,6 @@ export interface HardenedRules {
   typed: Linter.RulesRecord;
 }
 
-const NO_TYPES_IN_TS = 'no-types forbids types in comments in TypeScript.';
-const NOISY =
-  'Too many findings that need judgment rather than a mechanical fix.';
 const NEEDS_OPTIONS = 'Matches nothing without options, so it is only noise.';
 
 const LIBRARIES: HardenedLibrary[] = [

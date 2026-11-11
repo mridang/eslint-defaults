@@ -54,7 +54,7 @@ describe('hardenedRules', () => {
 describe('unicornExclusions', () => {
   it('only names rules that exist in the installed unicorn', async () => {
     const { unicornExclusions } = await import('../src/hardened.js');
-    const unicorn = (await import('eslint-plugin-unicorn')).default;
+    const { default: unicorn } = await import('eslint-plugin-unicorn');
     expect(
       Object.keys(unicornExclusions).filter((name) => !(name in unicorn.rules)),
     ).toEqual([]);

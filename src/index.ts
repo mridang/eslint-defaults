@@ -25,9 +25,13 @@ import packageJsonPlugin from 'eslint-plugin-package-json';
 import vuePlugin from 'eslint-plugin-vue';
 import sveltePlugin from 'eslint-plugin-svelte';
 import astroPlugin from 'eslint-plugin-astro';
-import * as mdxPlugin from 'eslint-plugin-mdx';
+import {
+  createRemarkProcessor,
+  flat as mdxFlat,
+  flatCodeBlocks as mdxFlatCodeBlocks,
+} from 'eslint-plugin-mdx';
 import path from 'node:path';
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 import { tailwindSupport } from './tailwind.js';
 import {
   hardenedPlugins,
@@ -69,10 +73,10 @@ const packageJson = loadJson('../package.json') as {
   name: string;
   version: string;
 };
-const htmlConfig = htmlRecommended[htmlRecommended.length - 1];
+const [htmlConfig] = htmlRecommended.slice(-1);
 htmlConfig.files = ['**/*.html', '**/*.htm', '**/*.html.json5'];
 htmlConfig.languageOptions = {
-  ...(htmlConfig.languageOptions || {}),
+  ...htmlConfig.languageOptions,
   parser: htmlParser,
 };
 const jsonRecommended = normalizeConfig(
@@ -90,7 +94,10 @@ const makeJsonConfig = (
 });
 const tsProjectPath = path.join(
   process.cwd(),
-  fs.existsSync(path.join(process.cwd(), 'tsconfig.jest.json'))
+  (await fs.access(path.join(process.cwd(), 'tsconfig.jest.json')).then(
+    () => true,
+    () => false,
+  ))
     ? 'tsconfig.jest.json'
     : 'tsconfig.json',
 );
@@ -114,7 +121,7 @@ const sharedGlobals = {
   ...globals.webextensions,
 };
 /** The Tailwind lint support for the project being linted: none, the 3.x or the 4.x plugin. */
-const tailwind = tailwindSupport();
+const tailwind = await tailwindSupport();
 const tailwindSettings = tailwind.settings;
 /** Matches every TypeScript and JavaScript file. */
 const CODE_FILES = `**/*.{${[...TYPESCRIPT_EXTENSIONS, ...JAVASCRIPT_EXTENSIONS].join(',')}}`;
@@ -377,15 +384,15 @@ const recommended: Linter.Config[] = [
   {
     // MDX: the text and its JSX are linted by the MDX plugin, and the code
     // blocks inside are virtual files that follow the rules of their language.
-    ...mdxPlugin.flat,
+    ...mdxFlat,
     files: ['**/*.mdx'],
-    plugins: { ...mdxPlugin.flat.plugins, react: reactPlugins.react },
-    processor: mdxPlugin.createRemarkProcessor({
+    plugins: { ...mdxFlat.plugins, react: reactPlugins.react },
+    processor: createRemarkProcessor({
       lintCodeBlocks: true,
       languageMapper: {},
     }),
   },
-  { ...mdxPlugin.flatCodeBlocks, files: ['**/*.mdx/**'] },
+  { ...mdxFlatCodeBlocks, files: ['**/*.mdx/**'] },
   {
     // Next.js route handlers and Astro or pages-router endpoints must be named GET, POST and so on.
     files: [
@@ -425,7 +432,7 @@ const recommended: Linter.Config[] = [
     rules: {
       'unicorn/filename-case': [
         'error',
-        { cases: { kebabCase: true }, ignore: ['^\\[.+\\]'] },
+        { cases: { kebabCase: true }, ignore: [String.raw`^\[.+\]`] },
       ],
       // Conflicts with Prettier.
       'no-unexpected-multiline': 'off',
