@@ -19,6 +19,36 @@ interface HardenedLibrary {
   excluded: Record<string, string>;
 }
 
+/**
+ * The JSDoc rules about types in comments. TypeScript files must not repeat
+ * types in JSDoc, while JavaScript files must state them there.
+ */
+const JSDOC_TYPE_TAGS = [
+  'require-next-type',
+  'require-param-type',
+  'require-property-type',
+  'require-returns-type',
+  'require-throws-type',
+  'require-yields-type',
+];
+
+/**
+ * The per-language settings for the JSDoc type rules, applied over the
+ * general rule set.
+ */
+export const jsdocTypeRules: {
+  ts: Linter.RulesRecord;
+  js: Linter.RulesRecord;
+} = {
+  ts: {
+    ...Object.fromEntries(
+      JSDOC_TYPE_TAGS.map((tag) => [`jsdoc/${tag}`, 'off']),
+    ),
+    'jsdoc/no-undefined-types': 'off',
+  },
+  js: { 'jsdoc/no-types': 'off' },
+};
+
 /** Rules that need type information and so only run on TypeScript files. */
 export interface HardenedRules {
   untyped: Linter.RulesRecord;
@@ -26,8 +56,6 @@ export interface HardenedRules {
 }
 
 const NO_TYPES_IN_TS = 'no-types forbids types in comments in TypeScript.';
-const DEMANDS_DOCS =
-  'Demands documentation on every symbol; the check rules still validate the docs that exist.';
 const NOISY =
   'Too many findings that need judgment rather than a mechanical fix.';
 const NEEDS_OPTIONS = 'Matches nothing without options, so it is only noise.';
@@ -37,20 +65,10 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'promise',
     plugin: promisePlugin as unknown as ESLint.Plugin,
     excluded: {
-      'prefer-catch': 'Its autofix can change behaviour or break types.',
-      'no-callback-in-promise':
-        'Matches parameter names such as next and err rather than real callbacks.',
-      'no-promise-in-callback':
-        'Matches parameter names such as next and err rather than real callbacks.',
-
-      'always-return':
-        'Mostly fire-and-forget .then() calls, and a false positive on Cypress chains.',
       'avoid-new':
         'Bans every new Promise(), including correct wrappers around callback APIs and timers.',
       'no-native':
         'Only relevant to ES5 environments without a native Promise.',
-      'prefer-await-to-callbacks':
-        'Matches parameter names (callback, cb) and flags .catch((error) => ...) handlers.',
       'prefer-await-to-then': 'We allow .then().',
     },
   },
@@ -58,107 +76,44 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'sonarjs',
     plugin: sonarjsPlugin as unknown as ESLint.Plugin,
     excluded: {
-      'max-lines': NOISY,
-      'function-return-type': NOISY,
-      'strings-comparison': NOISY,
-      'different-types-comparison': NOISY,
-      'pseudo-random': NOISY,
-      'no-inconsistent-returns': NOISY,
-      'bool-param-default': NOISY,
-      'no-inverted-boolean-check': NOISY,
-      'no-invariant-returns': NOISY,
-      'assertions-in-tests': NOISY,
-      'publicly-writable-directories': NOISY,
-      'public-static-readonly': NOISY,
-      'destructuring-assignment-syntax':
-        'Conflicts with unicorn/no-unreadable-array-destructuring.',
-
-      'void-use':
-        'Conflicts with the void idiom no-floating-promises relies on.',
-      'file-name-differ-from-class': 'Style opinion.',
-      'declarations-in-global-scope': NOISY,
-      'no-require-or-define': 'CommonJS files legitimately use require.',
-      'no-duplicate-string': NOISY,
-      'no-wildcard-import': NOISY,
-      'no-undefined-assignment': NOISY,
-      'cyclomatic-complexity': NOISY,
-      'cognitive-complexity': NOISY,
-      'no-nested-conditional': NOISY,
-      'function-name': NOISY,
-      'variable-name': NOISY,
-      'no-alphabetical-sort': NOISY,
-      'no-reference-error': NOISY,
-      'no-clear-text-protocols': NOISY,
-      'expression-complexity': NOISY,
-      'max-lines-per-function': NOISY,
-      'max-union-size': NOISY,
-      'nested-control-flow': NOISY,
-      'no-nested-template-literals': NOISY,
-      'no-hardcoded-ip': NOISY,
-      'no-os-command-from-path': NOISY,
-      'super-linear-regex': NOISY,
-      'no-implicit-dependencies': NOISY,
-      'prefer-read-only-props': NOISY,
-      'too-many-break-or-continue-in-loop': NOISY,
-      'no-redundant-optional': NOISY,
-      'regex-complexity': NOISY,
+      'file-name-differ-from-class':
+        'Clashes with framework-fixed file names and with our own file naming convention.',
+      'no-duplicate-string':
+        'Flags repeated messages, headers and fixture data, where a constant hurts readability.',
+      'cyclomatic-complexity':
+        'Needs a large refactor across the repos; to be enabled later.',
+      'cognitive-complexity':
+        'Needs a large refactor across the repos; to be enabled later.',
+      'no-reference-error':
+        'TypeScript already reports undefined names (error 2304), and this rule cannot see types from lib.dom or the Cloudflare packages.',
+      'no-implicit-dependencies':
+        'knip already reports unlisted dependencies, without needing per-repo options for built-ins and subpath imports.',
 
       'arrow-function-convention': 'Fights Prettier.',
-      'elseif-without-else': 'Style opinion.',
-      'file-header': 'Needs a header format to compare against.',
-      'shorthand-property-grouping': 'Style opinion.',
+      'file-header':
+        'Kept off by choice: we do not want licence headers in files.',
+      'shorthand-property-grouping':
+        'Kept off by choice: too trivial to enforce.',
     },
   },
   {
     namespace: 'jsdoc',
     plugin: jsdocPlugin as unknown as ESLint.Plugin,
     excluded: {
+      'require-example':
+        'Kept off by choice: an @example on every function would be generated, untested and go stale.',
+      'require-file-overview':
+        'Kept off by choice: a file overview on every file, tests included, would mostly repeat the file name.',
       'no-unnecessary-type-assertion':
-        'typescript-eslint has the same rule, and this one needs its own parser setup.',
-      'no-multi-asterisks': 'Its autofix can change behaviour or break types.',
-
-      'require-jsdoc': DEMANDS_DOCS,
-      'require-param': DEMANDS_DOCS,
-      'require-param-description': DEMANDS_DOCS,
-      'require-returns': DEMANDS_DOCS,
-      'require-returns-description': DEMANDS_DOCS,
-      'require-template': DEMANDS_DOCS,
-      'require-rejects': DEMANDS_DOCS,
-      'require-throws': DEMANDS_DOCS,
-      'require-description': DEMANDS_DOCS,
-      'require-yields': DEMANDS_DOCS,
-      'require-property': DEMANDS_DOCS,
-      'require-property-description': DEMANDS_DOCS,
-      'check-indentation': 'Fights Prettier or is a style opinion.',
-      'tag-lines': 'Fights Prettier or is a style opinion.',
-      'escape-inline-tags': 'Fights Prettier or is a style opinion.',
-      'informative-docs': 'Fights Prettier or is a style opinion.',
-      'sort-tags': 'Fights Prettier or is a style opinion.',
-      'no-types': 'Plain JavaScript repos keep their types in JSDoc.',
-
-      'check-examples':
-        'Lints @example code against the host config, not per file.',
-      'check-line-alignment': 'Fights Prettier.',
-      'convert-to-jsdoc-comments': 'Rewrites ordinary // comments.',
-      'lines-before-block': 'Fights Prettier.',
-      'match-description': 'Imposes a sentence style on every description.',
+        'Needs the typescript-eslint parser with type information, and our plain JavaScript files sit outside any tsconfig.',
       'match-name': NEEDS_OPTIONS,
       'no-missing-syntax': NEEDS_OPTIONS,
       'no-restricted-syntax': NEEDS_OPTIONS,
-      'no-undefined-types': 'typescript-eslint already resolves types.',
-      'require-asterisk-prefix': 'Fights Prettier.',
-      'require-description-complete-sentence': 'Style opinion.',
-      'require-example': 'Demands an @example on every function.',
-      'require-file-overview': 'Demands a file overview on every file.',
-      'require-hyphen-before-param-description': 'Style opinion.',
-      'require-next-type': NO_TYPES_IN_TS,
-      'require-param-type': NO_TYPES_IN_TS,
-      'require-property-type': NO_TYPES_IN_TS,
-      'require-returns-type': NO_TYPES_IN_TS,
       'require-tags': NEEDS_OPTIONS,
-      'require-throws-type': NO_TYPES_IN_TS,
-      'require-yields-type': NO_TYPES_IN_TS,
-      'text-escaping': 'Style opinion.',
+      'check-examples':
+        'Deprecated and broken on ESLint 8 and later; the plugin points to its JSDoc processor instead.',
+      'text-escaping':
+        'Errors on every comment unless escapeHTML or escapeMarkdown is chosen, and escaping descriptions is a style choice we have not made.',
     },
   },
   {
@@ -166,12 +121,7 @@ const LIBRARIES: HardenedLibrary[] = [
     plugin: githubPlugin as unknown as ESLint.Plugin,
     excluded: {
       'no-dataset':
-        'Conflicts with unicorn/dom-node-dataset, which autofixes back to .dataset.',
-      'a11y-no-title-attribute': 'Flags deliberate hover tooltips.',
-      'a11y-no-visually-hidden-interactive-element':
-        'Flags the standard sr-only skip link that appears on focus.',
-      'a11y-svg-has-accessible-name': 'Flags decorative and placeholder icons.',
-      'no-blur': 'Style opinion.',
+        'We follow unicorn/dom-node-dataset (.dataset); the two rules contradict each other.',
 
       'unescaped-html-literal':
         'Flags every string containing markup, which HTML-generating code needs.',
@@ -200,36 +150,27 @@ const LIBRARIES: HardenedLibrary[] = [
     excluded: {
       'no-extraneous-import': 'Cannot follow workspace and nested manifests.',
       'no-extraneous-require': 'Cannot follow workspace and nested manifests.',
-
       'file-extension-in-import':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
+        'TypeScript ESM requires .js extensions on relative imports and extensions on JSON imports, which the rule would strip or forbid.',
       'no-process-env':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
+        'Reading process.env is our standard way to take configuration, together with a plain .env file.',
       'no-top-level-await':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'no-unsupported-features/es-builtins':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'no-unsupported-features/es-syntax':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'no-unsupported-features/node-builtins':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'callback-return':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'no-callback-literal':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'no-unpublished-import':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-      'no-unpublished-require':
-        'Conflicts with TypeScript, bundlers or ESM, or depends on the engines field.',
-
+        'Only matters for published CommonJS-compatible libraries; every hit is a worker entry, build script, bin file or test, none of them published library code.',
       'no-missing-import':
-        'Cannot resolve TypeScript paths, and import/no-unresolved covers it.',
-      'no-missing-require':
-        'Cannot resolve TypeScript paths, and import/no-unresolved covers it.',
-      'no-sync': 'Synchronous calls are fine in scripts and config files.',
+        'Cannot resolve TypeScript paths; knip and import/no-unresolved already check imports.',
     },
   },
 ];
+
+/** Reason shared by every JSDoc rule that is not already excluded for another reason. */
+const JSDOC_TEMPORARILY_OFF =
+  'Temporarily off while the repositories are brought to a clean baseline; to be switched back on later.';
+const jsdocLibrary = LIBRARIES.find((library) => library.namespace === 'jsdoc');
+for (const name of Object.keys(jsdocLibrary?.plugin.rules ?? {})) {
+  if (jsdocLibrary && !(name in jsdocLibrary.excluded)) {
+    jsdocLibrary.excluded[name] = JSDOC_TEMPORARILY_OFF;
+  }
+}
 
 /**
  * The rules left off for each plugin namespace, with the reason.
@@ -294,60 +235,23 @@ export function hardenedRules(): HardenedRules {
  * config, so these are switched off after it.
  */
 export const unicornExclusions: Record<string, string> = {
-  'consistent-function-scoping': 'Style opinion or too noisy to adopt.',
-  'no-array-callback-reference': 'Style opinion or too noisy to adopt.',
-  'no-array-sort': 'Style opinion or too noisy to adopt.',
-  'no-keyword-prefix': 'Style opinion or too noisy to adopt.',
-  'no-manually-wrapped-comments': 'Style opinion or too noisy to adopt.',
-  'no-useless-fallback-in-spread': 'Style opinion or too noisy to adopt.',
-  'number-literal-case': 'Style opinion or too noisy to adopt.',
-  'numeric-separators-style': 'Style opinion or too noisy to adopt.',
-  'prefer-at': 'Style opinion or too noisy to adopt.',
-  'prefer-iterator-concat': 'Style opinion or too noisy to adopt.',
-  'prefer-node-protocol': 'Style opinion or too noisy to adopt.',
-  'prefer-split-limit': 'Style opinion or too noisy to adopt.',
-  'prefer-string-replace-all': 'Style opinion or too noisy to adopt.',
-  'relative-url-style': 'Style opinion or too noisy to adopt.',
-  'text-encoding-identifier-case': 'Style opinion or too noisy to adopt.',
-  'try-complexity': 'Style opinion or too noisy to adopt.',
-  'prevent-abbreviations': 'Style opinion or too noisy to adopt.',
-  'no-null': 'Style opinion or too noisy to adopt.',
-  'no-await-expression-member': 'Style opinion or too noisy to adopt.',
-  'no-useless-undefined': 'Style opinion or too noisy to adopt.',
-  'filename-case': 'Style opinion or too noisy to adopt.',
-  'no-negated-condition': 'Style opinion or too noisy to adopt.',
-  'no-nested-ternary': 'Style opinion or too noisy to adopt.',
-  'no-array-for-each': 'Style opinion or too noisy to adopt.',
-  'no-array-reduce': 'Style opinion or too noisy to adopt.',
-  'prefer-global-this': 'Style opinion or too noisy to adopt.',
-  'import-style': 'Style opinion or too noisy to adopt.',
-  'explicit-length-check': 'Style opinion or too noisy to adopt.',
-  'prefer-https': 'Style opinion or too noisy to adopt.',
-  'no-this-outside-of-class': 'Style opinion or too noisy to adopt.',
-  'consistent-destructuring': 'Style opinion or too noisy to adopt.',
-  'prefer-code-point': 'Style opinion or too noisy to adopt.',
-  'no-unused-array-method-return':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'no-array-method-this-argument':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'prefer-top-level-await':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'prefer-module': 'Style opinion, a false positive, or an unsafe autofix.',
-  'no-useless-spread': 'Style opinion, a false positive, or an unsafe autofix.',
-  'no-anonymous-default-export':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'prefer-add-event-listener':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'no-empty-file': 'Style opinion, a false positive, or an unsafe autofix.',
-  'prefer-math-min-max':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'require-css-escape':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'better-dom-traversing':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'prefer-includes-over-repeated-comparisons':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'no-unused-properties':
-    'Style opinion, a false positive, or an unsafe autofix.',
-  'no-array-reverse': 'Style opinion, a false positive, or an unsafe autofix.',
+  'consistent-function-scoping': 'Kept off by choice.',
+  'try-complexity': 'Kept off by choice.',
+  'no-keyword-prefix':
+    'Flags the React className prop, which cannot be renamed.',
+  'prevent-abbreviations':
+    'Fights our own naming convention and the standard names in our frameworks (req, res, env, db, ctx).',
+  'no-null':
+    'null is required by JSON, DOM, databases and React refs, and the autofix cannot tell where.',
+  'no-useless-undefined': 'Kept off by choice.',
+  'no-array-for-each': 'Kept off by choice.',
+  'no-array-reduce': 'Kept off by choice.',
+  'number-literal-case':
+    'Conflicts with Prettier, which writes hex digits in lower case.',
+  'no-nested-ternary':
+    'Conflicts with Prettier, which formats nested ternaries itself.',
+  'empty-brace-spaces':
+    'Conflicts with Prettier, which owns the spacing inside braces.',
+  'template-indent':
+    'Conflicts with Prettier, which owns the indentation of template literals.',
 };
