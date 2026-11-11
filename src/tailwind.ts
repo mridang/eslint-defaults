@@ -1,7 +1,7 @@
 import type { ESLint, Linter } from 'eslint';
 import tailwindV4 from 'eslint-plugin-tailwindcss';
 import tailwindV3 from 'eslint-plugin-tailwindcss-v3';
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -36,10 +36,10 @@ const CSS_ENTRY_CANDIDATES = [
 ] as const;
 
 /** Whether a CSS file pulls in Tailwind 4 (`@import "tailwindcss"`, including sub-paths). */
-function importsTailwind(file: string): boolean {
+async function importsTailwind(file: string): Promise<boolean> {
   try {
     return /@import\s+['"]tailwindcss(?:\/[^'"]*)?['"]/.test(
-      fs.readFileSync(file, 'utf8'),
+      await fs.readFile(file, 'utf8'),
     );
   } catch {
     return false;
@@ -51,10 +51,14 @@ function importsTailwind(file: string): boolean {
  * the usual places has one. (A project with an unusual layout sets
  * `settings.tailwindcss.cssConfigPath` itself, which wins over this guess.)
  */
-export function findTailwindCssEntry(cwd: string): string | undefined {
-  return CSS_ENTRY_CANDIDATES.map((candidate) =>
-    path.join(cwd, candidate),
-  ).find(importsTailwind);
+export async function findTailwindCssEntry(
+  cwd: string,
+): Promise<string | undefined> {
+  for (const candidate of CSS_ENTRY_CANDIDATES) {
+    const file = path.join(cwd, candidate);
+    if (await importsTailwind(file)) return file;
+  }
+  return undefined;
 }
 
 /**
@@ -68,7 +72,7 @@ export function tailwindMajorVersion(cwd: string): number | undefined {
     const { version } = projectRequire('tailwindcss/package.json') as {
       version?: string;
     };
-    const major = Number.parseInt(version?.split('.')[0] ?? '', 10);
+    const major = Number.parseInt(version?.split('.', 1)[0] ?? '', 10);
     return Number.isNaN(major) ? undefined : major;
   } catch {
     return undefined;
@@ -122,24 +126,26 @@ const NO_CUSTOM_CLASSNAME = 'tailwindcss/no-custom-classname';
  * Tailwind's nor the project's (a typo) is reported. The severity and any
  * options the plugin recommends are kept; the rule is never switched off.
  */
-function withProjectClasses(
+async function withProjectClasses(
   rules: Readonly<Linter.RulesRecord>,
   cwd: string,
-): Readonly<Linter.RulesRecord> {
+): Promise<Readonly<Linter.RulesRecord>> {
   const setting = rules[NO_CUSTOM_CLASSNAME] as Linter.RuleEntry | undefined;
   if (setting === undefined) return rules;
-  const whitelist = projectCssWhitelist(cwd);
+  const whitelist = await projectCssWhitelist(cwd);
   if (whitelist.length === 0) return rules;
   const [severity, options] = Array.isArray(setting)
     ? [setting[0], (setting[1] ?? {}) as { whitelist?: string[] }]
     : [setting, {}];
+  const merged = new Set(options.whitelist);
+  for (const entry of whitelist) merged.add(entry);
   return {
     ...rules,
     [NO_CUSTOM_CLASSNAME]: [
       severity,
       {
         ...options,
-        whitelist: [...new Set([...(options.whitelist ?? []), ...whitelist])],
+        whitelist: [...merged],
       },
     ],
   };
@@ -167,7 +173,9 @@ const V3_SETTINGS = {
  *   The classes the project's own CSS defines are whitelisted for
  *   `no-custom-classname`, which the 4.x plugin would otherwise flag.
  */
-export function tailwindSupport(cwd: string = process.cwd()): TailwindSupport {
+export async function tailwindSupport(
+  cwd: string = process.cwd(),
+): Promise<TailwindSupport> {
   const major = tailwindMajorVersion(cwd);
   if (major === undefined) {
     return { rules: {}, settings: {} };
@@ -179,11 +187,11 @@ export function tailwindSupport(cwd: string = process.cwd()): TailwindSupport {
       settings: V3_SETTINGS,
     };
   }
-  const cssConfigPath = findTailwindCssEntry(cwd);
+  const cssConfigPath = await findTailwindCssEntry(cwd);
   return {
     plugin: tailwindV4 as ESLint.Plugin,
     rules: cssConfigPath
-      ? withProjectClasses(
+      ? await withProjectClasses(
           { ...recommendedRules(tailwindV4), ...V4_DISABLED_RULES },
           cwd,
         )
