@@ -520,6 +520,15 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
     expect(await ruleOf('src/page.tsx', 'prettier/prettier')).toEqual([2]);
   });
 
+  test.each([
+    'react/jsx-key',
+    'react/no-unescaped-entities',
+    'react/no-unknown-property',
+  ])('turns %s off in Astro files only', async (rule) => {
+    expect(await ruleOf('src/Page.astro', rule)).toEqual([0]);
+    expect(((await ruleOf('src/page.tsx', rule)) as unknown[])?.[0]).toBe(2);
+  });
+
   test('leaves HTML layout to Prettier', async () => {
     expect(await ruleOf('src/a.html', '@html-eslint/indent')).toEqual([0]);
   });
