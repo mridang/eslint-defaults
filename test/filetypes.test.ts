@@ -368,7 +368,6 @@ describe('embedded formats, MDX and styles', () => {
       'src/Format.svelte',
       '<script lang="ts">\nlet   a=1;\nconsole.log( a )\n</script>\n',
     ],
-    ['src/Format.astro', '---\nlet   a=1;\nconsole.log( a )\n---\n<div />\n'],
     [
       'src/Format.vue',
       '<script setup lang="ts">\nlet   a=1;\nconsole.log( a )\n</script>\n',
@@ -514,6 +513,11 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
     expect(
       await ruleOf('src/a.ts', '@typescript-eslint/no-unused-vars'),
     ).toEqual([0]);
+  });
+
+  test('leaves Astro formatting to the Prettier command', async () => {
+    expect(await ruleOf('src/Page.astro', 'prettier/prettier')).toEqual([0]);
+    expect(await ruleOf('src/page.tsx', 'prettier/prettier')).toEqual([2]);
   });
 
   test('leaves HTML layout to Prettier', async () => {
