@@ -369,16 +369,11 @@ const recommended: Linter.Config[] = [
     },
   },
   {
+    // The Prettier rule formats Astro templates differently from the Prettier
+    // command (it moves comments and rewraps attributes), so the two fight each
+    // other. Prettier itself checks these files.
     files: ['**/*.astro'],
-    rules: {
-      'prettier/prettier': [
-        'error',
-        {
-          plugins: [requirePlugin.resolve('prettier-plugin-astro')],
-          parser: 'astro',
-        },
-      ],
-    },
+    rules: { 'prettier/prettier': 'off' },
   },
   {
     // MDX: the text and its JSX are linted by the MDX plugin, and the code
