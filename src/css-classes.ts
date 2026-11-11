@@ -22,13 +22,6 @@ const IGNORED_DIRECTORIES = new Set([
   'coverage',
 ]);
 
-/** Code-unit order, which is what a bare `sort()` gave. */
-function compareCodeUnits(a: string, b: string): number {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
-}
-
 /** The text without the slashes at either end. */
 function trimSlashes(text: string): string {
   let start = 0;
@@ -90,16 +83,26 @@ export async function findCssFiles(root: string): Promise<string[]> {
         }
       } else if (entry.isFile() && entry.name.endsWith('.css')) {
         found.push(path.join(dir, entry.name));
+      } else {
+        // Not a folder to enter or a stylesheet to collect.
       }
     }
   };
   await walk(root);
-  return found.toSorted(compareCodeUnits);
+  return found.toSorted((a, b) => a.localeCompare(b));
 }
 
 /** Comments, strings, `url(...)` and escape pairs, in one pass so each is seen in its own context. */
-const NOISE =
-  /\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\\n])*"|'(?:\\[\s\S]|[^'\\\n])*'|url\((?:\\[\s\S]|[^)\\])*\)|\\[\s\S]/gi;
+const NOISE = new RegExp(
+  [
+    String.raw`\/\*[\s\S]*?\*\/`,
+    String.raw`"(?:\\[\s\S]|[^"\\\n])*"`,
+    String.raw`'(?:\\[\s\S]|[^'\\\n])*'`,
+    String.raw`url\((?:\\[\s\S]|[^)\\])*\)`,
+    String.raw`\\[\s\S]`,
+  ].join('|'),
+  'gi',
+);
 
 /** The stylesheet with comments, strings and `url()` contents emptied out, keeping escapes and layout. */
 function stripNoise(css: string): string {
@@ -112,8 +115,11 @@ function stripNoise(css: string): string {
 }
 
 /** A CSS identifier after a dot: escapes (`\:`, `\31 0`) and non-ASCII are part of the name. */
-const CLASS_SELECTOR =
-  /\.(-{0,2}(?:[_a-zA-Z\u0080-￿]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n]))(?:[\w\u0080-￿-]|\\(?:[0-9a-fA-F]{1,6}\s?|[^\n]))*)/g;
+const CLASS_ESCAPE = String.raw`\\(?:[0-9a-fA-F]{1,6}\s?|[^\n])`;
+const CLASS_SELECTOR = new RegExp(
+  String.raw`\.(-{0,2}(?:[_a-zA-Z\u0080-￿]|${CLASS_ESCAPE})(?:[\w\u0080-￿-]|${CLASS_ESCAPE})*)`,
+  'g',
+);
 
 /** Turn the escapes in a CSS identifier into the characters they stand for. */
 function unescapeIdentifier(identifier: string): string {
@@ -122,7 +128,7 @@ function unescapeIdentifier(identifier: string): string {
     (_match, hex: string | undefined, char: string | undefined) => {
       if (char !== undefined) return char;
       const code = Number.parseInt(hex ?? '', 16);
-      return code > 0 && code <= 0x10_ffff ? String.fromCodePoint(code) : '�';
+      return code > 0 && code <= 0x10_ff_ff ? String.fromCodePoint(code) : '�';
     },
   );
 }
@@ -140,6 +146,8 @@ function* preludes(css: string): Generator<string> {
       start = index + 1;
     } else if (char === '}' || char === ';') {
       start = index + 1;
+    } else {
+      // Part of the text that precedes the next brace.
     }
   }
 }
@@ -167,6 +175,8 @@ export function extractClassNames(css: string): Set<string> {
       for (const match of selector.matchAll(CLASS_SELECTOR)) {
         names.add(unescapeIdentifier(match[1] ?? ''));
       }
+    } else {
+      // An at-rule whose prelude holds no selectors.
     }
   }
   return names;
@@ -197,7 +207,7 @@ export function toWhitelist(names: Iterable<string>): string[] {
       entries.add(name);
     }
   }
-  return [...entries].toSorted(compareCodeUnits);
+  return [...entries].toSorted((a, b) => a.localeCompare(b));
 }
 
 /** The classes defined by the project's own stylesheets under `root`, as `whitelist` entries. */

@@ -12,8 +12,9 @@
  * to that entry's `disabled` map with the reason: it stays in the report, with
  * no checks run.
  */
-import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -21,6 +22,14 @@ import { parseArgs } from 'node:util';
 import { fixupPluginRules } from '@eslint/compat';
 import typescriptParser from '@typescript-eslint/parser';
 import { ESLint, Linter } from 'eslint';
+
+/** Whether a path exists. */
+async function exists(target: string): Promise<boolean> {
+  return fs
+    .access(target)
+    .then(() => true)
+    .catch(() => false);
+}
 
 export interface LibraryDefinition {
   id: string;
@@ -210,7 +219,7 @@ export function classifyRules(
         hits: [],
       };
     })
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .toSorted((left, right) => left.name.localeCompare(right.name));
 }
 
 /**
@@ -366,7 +375,7 @@ function renderRulePane(
 function repoRuleMatrix(library: LibraryResult, data: ReportData): string {
   const ranked = library.rules
     .filter((rule) => rule.hits.length > 0)
-    .sort((left, right) => right.hits.length - left.hits.length);
+    .toSorted((left, right) => right.hits.length - left.hits.length);
   if (ranked.length === 0) {
     return '<p class="mut">No findings in any repository.</p>';
   }
@@ -404,8 +413,8 @@ function renderLibrary(library: LibraryResult, data: ReportData): string {
   const libraryId = slug(library.definition.id);
   const sideItems = [
     `<div class="rt tab on" data-tab data-group="sub-${libraryId}" data-id="${libraryId}-summary" data-name="summary"><span>Summary</span></div>`,
-    ...[...library.rules]
-      .sort((left, right) => right.hits.length - left.hits.length)
+    ...library.rules
+      .toSorted((left, right) => right.hits.length - left.hits.length)
       .map((rule) => {
         const classes = ruleClass(rule);
         const count = rule.enabled ? String(rule.hits.length) : 'off';
@@ -463,7 +472,8 @@ function renderOverview(data: ReportData): string {
         noted === undefined
           ? ''
           : ` <span class="mut">(${escapeHtml(noted)})</span>`;
-      return `<tr><td>${escapeHtml(repo)}${error}${note}</td><td><b>${total}</b></td>${counts.map((count) => `<td>${count || ''}</td>`).join('')}</tr>`;
+      const cells = counts.map((count) => `<td>${count || ''}</td>`).join('');
+      return `<tr><td>${escapeHtml(repo)}${error}${note}</td><td><b>${total}</b></td>${cells}</tr>`;
     })
     .join('');
   const stats = data.libraries
@@ -545,9 +555,9 @@ interface LoadedLibrary {
 /**
  * @param packageDir
  */
-function entryPoint(packageDir: string): string {
+async function entryPoint(packageDir: string): Promise<string> {
   const manifest = JSON.parse(
-    fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
+    await fs.readFile(path.join(packageDir, 'package.json'), 'utf8'),
   ) as { exports?: unknown; main?: string };
   const pick = (target: unknown): string | undefined => {
     if (typeof target === 'string') {
@@ -576,13 +586,16 @@ function entryPoint(packageDir: string): string {
  * @param cacheDir
  * @param refresh
  */
-function installPlugins(cacheDir: string, refresh: boolean): void {
-  fs.mkdirSync(cacheDir, { recursive: true });
+async function installPlugins(
+  cacheDir: string,
+  refresh: boolean,
+): Promise<void> {
+  await fs.mkdir(cacheDir, { recursive: true });
   const dependencies = {
     eslint: '^10',
     ...Object.fromEntries(LIBRARIES.map((library) => [library.pkg, 'latest'])),
   };
-  fs.writeFileSync(
+  await fs.writeFile(
     path.join(cacheDir, 'package.json'),
     JSON.stringify({
       name: 'rule-impact-plugins',
@@ -590,12 +603,14 @@ function installPlugins(cacheDir: string, refresh: boolean): void {
       dependencies,
     }),
   );
-  const missing = LIBRARIES.some(
-    (library) =>
-      !fs.existsSync(path.join(cacheDir, 'node_modules', library.pkg)),
+  const present = await Promise.all(
+    LIBRARIES.map((library) =>
+      exists(path.join(cacheDir, 'node_modules', library.pkg)),
+    ),
   );
-  if (refresh || missing) {
-    execFileSync(
+  if (refresh || present.includes(false)) {
+    const install = spawn(
+      // eslint-disable-next-line sonarjs/no-os-command-from-path -- npm has no fixed install path (nvm, devbox, system), so it is found on PATH like any developer's own `npm install`
       'npm',
       [
         'install',
@@ -606,6 +621,10 @@ function installPlugins(cacheDir: string, refresh: boolean): void {
       ],
       { cwd: cacheDir, stdio: 'inherit' },
     );
+    const [code] = (await once(install, 'close')) as [number | null];
+    if (code !== 0) {
+      throw new Error(`npm install exited with ${code}`);
+    }
   }
 }
 
@@ -621,12 +640,12 @@ async function loadLibrary(
   try {
     const version = (
       JSON.parse(
-        fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
+        await fs.readFile(path.join(packageDir, 'package.json'), 'utf8'),
       ) as { version: string }
     ).version;
     // eslint-disable-next-line no-unsanitized/method -- loads a plugin this script installed
     const loaded = (await import(
-      pathToFileURL(entryPoint(packageDir)).href
+      pathToFileURL(await entryPoint(packageDir)).href
     )) as { default?: ESLint.Plugin } & ESLint.Plugin;
     const plugin = loaded.default?.rules ? loaded.default : loaded;
     const rules = (plugin.rules ?? {}) as Record<string, unknown>;
@@ -697,7 +716,7 @@ function preflight(library: LoadedLibrary, rules: RuleInfo[]): void {
       }
     } catch (error) {
       rule.enabled = false;
-      rule.reason = `Cannot run unconfigured: ${messageOf(error).split('\n')[0]}`;
+      rule.reason = `Cannot run unconfigured: ${messageOf(error).split('\n', 1)[0]}`;
     }
   }
 }
@@ -706,17 +725,21 @@ function preflight(library: LoadedLibrary, rules: RuleInfo[]): void {
  * @param orgDir
  * @param only
  */
-function findRepos(orgDir: string, only: Set<string> | undefined): string[] {
-  return fs
-    .readdirSync(orgDir, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isDirectory() &&
-        fs.existsSync(path.join(orgDir, entry.name, '.git')) &&
-        (!only || only.has(entry.name)),
-    )
+async function findRepos(
+  orgDir: string,
+  only: Set<string> | undefined,
+): Promise<string[]> {
+  const entries = await fs.readdir(orgDir, { withFileTypes: true });
+  const candidates = entries.filter(
+    (entry) => entry.isDirectory() && (!only || only.has(entry.name)),
+  );
+  const withGit = await Promise.all(
+    candidates.map((entry) => exists(path.join(orgDir, entry.name, '.git'))),
+  );
+  return candidates
+    .filter((_entry, index) => withGit[index])
     .map((entry) => entry.name)
-    .sort();
+    .toSorted((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -841,10 +864,10 @@ async function lintRepoRecovering(
       const crashed = /Rule: "([^"]+)"/.exec(message)?.[1];
       const rule = crashed ? rulesByQualifiedName.get(crashed) : undefined;
       if (!rule?.enabled) {
-        return { error: message.split('\n')[0] };
+        return { error: message.split('\n', 1)[0] };
       }
       rule.enabled = false;
-      rule.reason = `Crashed while linting ${repo}: ${message.split('\n')[0]}`;
+      rule.reason = `Crashed while linting ${repo}: ${message.split('\n', 1)[0]}`;
       rule.hits = [];
       console.error(`${repo}: switched off ${crashed}, retrying`);
     }
@@ -888,7 +911,7 @@ async function main(): Promise<void> {
     (library) => !wantedLibraries || wantedLibraries.includes(library.id),
   );
 
-  installPlugins(cacheDir, Boolean(values.refresh));
+  await installPlugins(cacheDir, Boolean(values.refresh));
   const loaded = await Promise.all(
     selected.map((library) => loadLibrary(library, cacheDir)),
   );
@@ -912,8 +935,10 @@ async function main(): Promise<void> {
     for (const rule of classified) {
       byQualifiedName.set(`${library.definition.namespace}/${rule.name}`, rule);
     }
+    const enabledCount = classified.filter((rule) => rule.enabled).length;
+    const failure = library.error ? ` (${library.error})` : '';
     console.error(
-      `${library.definition.pkg}: ${classified.filter((rule) => rule.enabled).length}/${classified.length} rules enabled${library.error ? ` (${library.error})` : ''}`,
+      `${library.definition.pkg}: ${enabledCount}/${classified.length} rules enabled${failure}`,
     );
   }
 
@@ -924,13 +949,13 @@ async function main(): Promise<void> {
     error: library.error,
   }));
   if (values.list) {
-    fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, buildRuleList(libraryResults));
+    await fs.mkdir(path.dirname(out), { recursive: true });
+    await fs.writeFile(out, buildRuleList(libraryResults));
     console.error(`rule list: ${out}`);
     return;
   }
 
-  const repos = findRepos(
+  const repos = await findRepos(
     orgDir,
     values.repos ? new Set(values.repos.split(',')) : undefined,
   );
@@ -955,9 +980,14 @@ async function main(): Promise<void> {
       continue;
     }
     let found = outcome.found ?? 0;
-    const project = ['tsconfig.jest.json', 'tsconfig.json']
-      .map((name) => path.join(orgDir, repo, name))
-      .find((candidate) => fs.existsSync(candidate));
+    let project: string | undefined;
+    for (const name of ['tsconfig.jest.json', 'tsconfig.json']) {
+      const candidate = path.join(orgDir, repo, name);
+      if (await exists(candidate)) {
+        project = candidate;
+        break;
+      }
+    }
     if (hasTyped && !project) {
       repoNotes[repo] = 'no tsconfig, type-aware rules skipped';
     } else if (hasTyped) {
@@ -973,7 +1003,11 @@ async function main(): Promise<void> {
       } else if (typed.unparsed) {
         repoNotes[repo] =
           `${typed.unparsed} files not in tsconfig, skipped by type-aware rules`;
+      } else {
+        // Nothing to note: the type-aware pass was clean.
       }
+    } else {
+      // No type-aware rules are enabled, so there is nothing to note.
     }
     console.error(
       `${label}: ${found} findings (${((Date.now() - started) / 1000).toFixed(1)}s)`,
@@ -981,6 +1015,24 @@ async function main(): Promise<void> {
   }
 
   const lineCache = new Map<string, string[]>();
+  const wanted = new Set(
+    libraryResults.flatMap((library) =>
+      library.rules.flatMap((rule) =>
+        rule.hits.map((hit) => path.join(orgDir, hit.repo, hit.file)),
+      ),
+    ),
+  );
+  await Promise.all(
+    [...wanted].map(async (full) => {
+      lineCache.set(
+        full,
+        await fs
+          .readFile(full, 'utf8')
+          .then((text) => text.split('\n'))
+          .catch(() => []),
+      );
+    }),
+  );
   const report = buildReport({
     generatedAt: new Date().toISOString(),
     orgDir,
@@ -991,18 +1043,11 @@ async function main(): Promise<void> {
     libraries: libraryResults,
     readLines: (repo, file) => {
       const full = path.join(orgDir, repo, file);
-      if (!lineCache.has(full)) {
-        try {
-          lineCache.set(full, fs.readFileSync(full, 'utf8').split('\n'));
-        } catch {
-          lineCache.set(full, []);
-        }
-      }
       return lineCache.get(full) ?? [];
     },
   });
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, report);
+  await fs.mkdir(path.dirname(out), { recursive: true });
+  await fs.writeFile(out, report);
   console.error(`report: ${out}`);
 }
 

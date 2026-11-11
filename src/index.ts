@@ -92,14 +92,13 @@ const makeJsonConfig = (
   files: Array.isArray(files) ? files : [files],
   language,
 });
+const hasJestTsconfig = await fs
+  .access(path.join(process.cwd(), 'tsconfig.jest.json'))
+  .then(() => true)
+  .catch(() => false);
 const tsProjectPath = path.join(
   process.cwd(),
-  (await fs.access(path.join(process.cwd(), 'tsconfig.jest.json')).then(
-    () => true,
-    () => false,
-  ))
-    ? 'tsconfig.jest.json'
-    : 'tsconfig.json',
+  hasJestTsconfig ? 'tsconfig.jest.json' : 'tsconfig.json',
 );
 /** The React version for the lint settings: detected when React is installed, fixed otherwise so the plugin stays quiet. */
 const reactVersion = ((): string => {

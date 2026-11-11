@@ -9,14 +9,8 @@ import {
   toWhitelist,
 } from '../src/css-classes.js';
 
-const compareCodeUnits = (a: string, b: string): number => {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
-};
-
 const classes = (css: string): string[] =>
-  [...extractClassNames(css)].toSorted(compareCodeUnits);
+  [...extractClassNames(css)].toSorted((a, b) => a.localeCompare(b));
 
 describe('extractClassNames', () => {
   it('reads plain, compound and combined selectors', () => {
@@ -83,8 +77,8 @@ describe('extractClassNames', () => {
 
   it('reads non-ASCII and underscore names', () => {
     expect(classes('._private, .café, .--x { x: y }')).toEqual([
-      '--x',
       '_private',
+      '--x',
       'café',
     ]);
   });
@@ -192,9 +186,11 @@ describe('findCssFiles and projectCssWhitelist', () => {
       '.out/x.css': '.built {}',
       'src/notes.txt': '.nope {}',
     });
-    expect((await findCssFiles(dir)).map((f) => path.relative(dir, f))).toEqual(
-      ['src/app/globals.css', 'styles/extra.css'],
-    );
+    const files = await findCssFiles(dir);
+    expect(files.map((f) => path.relative(dir, f))).toEqual([
+      'src/app/globals.css',
+      'styles/extra.css',
+    ]);
   });
 
   it('skips folders listed by name in the root .gitignore', async () => {
@@ -203,9 +199,8 @@ describe('findCssFiles and projectCssWhitelist', () => {
       'generated/x.css': '.gen {}',
       'src/x.css': '.a {}',
     });
-    expect((await findCssFiles(dir)).map((f) => path.relative(dir, f))).toEqual(
-      ['src/x.css'],
-    );
+    const files = await findCssFiles(dir);
+    expect(files.map((f) => path.relative(dir, f))).toEqual(['src/x.css']);
   });
 
   it('collects the classes of every stylesheet as whitelist entries', async () => {

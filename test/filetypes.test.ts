@@ -1,20 +1,13 @@
 import { ESLint } from 'eslint';
-import fs from 'node:fs';
-import path from 'node:path';
 import { hardenedRules, jsdocTypeRules } from '../src/hardened.js';
 import eslintConfig from '../eslint.config.mjs';
+import { COVERAGE_SOURCES, MARKER_CODE } from './utils/coverage-sources.js';
 import { matchesFileGlob, matchesIgnores } from './utils/patterns.js';
 
 const lintMessages = async (text: string, filePath: string) => {
   const eslint = new ESLint({ cwd: process.cwd() });
   const [result] = await eslint.lintText(text, { filePath });
   return result.messages;
-};
-
-const compareCodeUnits = (a: string, b: string): number => {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
 };
 
 const fileTypeCases = [
@@ -192,7 +185,6 @@ const FENCE_EXTENSION: Record<string, string> = {
 const fenceExtension = (fence: string): string =>
   FENCE_EXTENSION[fence] ?? fence;
 const MARKER_RULE = 'unicorn/prefer-node-protocol';
-const MARKER_CODE = "import fs from 'fs';\nexport default fs;\n";
 
 type Language = 'typescript' | 'javascript';
 
@@ -207,7 +199,7 @@ function expectedRules(language: Language, typed: boolean): string[] {
   return Object.entries(rules)
     .filter(([, value]) => value !== 'off')
     .map(([name]) => name)
-    .toSorted(compareCodeUnits);
+    .toSorted((a, b) => a.localeCompare(b));
 }
 
 async function activeRules(
@@ -311,39 +303,7 @@ const DATA_FORMATS: Array<[string, string, string | undefined]> = [
 describe('code is really linted, with no parse errors', () => {
   const lint = lintMessages;
 
-  const sources: Array<[string, string]> = [
-    ...[...TYPESCRIPT_EXTENSIONS, ...JAVASCRIPT_EXTENSIONS].map(
-      (extension): [string, string] => [
-        `test/coverage-tmp/${extension.replaceAll('.', '-')}.${extension}`,
-        MARKER_CODE,
-      ],
-    ),
-    [
-      'test/coverage-tmp/App.vue',
-      `<script lang="ts">\n${MARKER_CODE}</script>\n`,
-    ],
-    [
-      'test/coverage-tmp/App.svelte',
-      `<script lang="ts">\n${MARKER_CODE}</script>\n`,
-    ],
-    [
-      'test/coverage-tmp/Page.astro',
-      `---\nimport fs from 'fs';\nconsole.log(fs);\n---\n<div />\n`,
-    ],
-  ];
-
-  // Files are written to disk because type-aware linting only accepts files
-  // that belong to the TypeScript project.
-  beforeAll(() => {
-    fs.mkdirSync('test/coverage-tmp', { recursive: true });
-    for (const [filePath, text] of sources) {
-      fs.writeFileSync(path.join(process.cwd(), filePath), text);
-    }
-  });
-
-  afterAll(() => {
-    fs.rmSync('test/coverage-tmp', { recursive: true, force: true });
-  });
+  const sources = COVERAGE_SOURCES;
 
   test.each(DATA_FORMATS)('a real .%s file', async (format, code, rule) => {
     const messages = await lint(code, `docs/sample.${format}`);
@@ -367,11 +327,13 @@ describe('code is really linted, with no parse errors', () => {
       ...JAVASCRIPT_FENCES,
       ...EMBEDDED_EXTENSIONS,
     ])('a %s block is linted', async (fence) => {
-      let body = MARKER_CODE;
+      let body: string;
       if (fence === 'vue' || fence === 'svelte') {
         body = `<script lang="ts">\n${MARKER_CODE}</script>`;
       } else if (fence === 'astro') {
         body = `---\nimport fs from 'fs';\nconsole.log(fs);\n---\n<div />`;
+      } else {
+        body = MARKER_CODE;
       }
       const messages = await lint(
         `# Title\n\n\`\`\`${fence}\n${body}\n\`\`\`\n`,

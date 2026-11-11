@@ -211,6 +211,7 @@ describe('tailwindSupport', () => {
         expect.objectContaining({ whitelist: ['card'] }),
       ]),
     );
-    expect((await tailwindSupport(project({ css }))).rules).toEqual({});
+    const { rules } = await tailwindSupport(project({ css }));
+    expect(rules).toEqual({});
   });
 });
