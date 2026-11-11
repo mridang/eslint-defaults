@@ -376,6 +376,17 @@ const recommended: Linter.Config[] = [
     rules: { 'prettier/prettier': 'off' },
   },
   {
+    // Astro templates are HTML, not React: `class`, `tabindex` and directives
+    // such as `set:html` are correct there, lists need no `key`, and text may
+    // hold a plain apostrophe. The React fixes for these break `astro check`.
+    files: ['**/*.astro'],
+    rules: {
+      'react/jsx-key': 'off',
+      'react/no-unescaped-entities': 'off',
+      'react/no-unknown-property': 'off',
+    },
+  },
+  {
     // MDX: the text and its JSX are linted by the MDX plugin, and the code
     // blocks inside are virtual files that follow the rules of their language.
     ...mdxFlat,
