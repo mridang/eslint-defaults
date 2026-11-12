@@ -547,7 +547,21 @@ const recommended: Linter.Config[] = [
   xssPlugin.configs.recommended,
   ...markdownRecommended,
   ...markdownProcessor,
-  { ...packageJsonPlugin.configs.recommended, language: '@/js' },
+  {
+    ...packageJsonPlugin.configs.recommended,
+    language: '@/js',
+    rules: {
+      ...packageJsonPlugin.configs.recommended.rules,
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: String.raw`JSONProperty[key.value='scripts'] > JSONObjectExpression > JSONProperty > JSONLiteral.value[value=/(^|[\s;&|(])npx(\s|$)/]`,
+          message:
+            'Do not use npx in package.json scripts: npm run already puts node_modules/.bin on the PATH, so call the binary directly.',
+        },
+      ],
+    },
+  },
 ];
 
 const config: ESLint.Plugin = {
