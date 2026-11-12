@@ -549,3 +549,30 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
     },
   );
 });
+
+describe('npx in package.json scripts', () => {
+  const lint = (scripts: Record<string, string>) =>
+    lintMessages(
+      JSON.stringify({ name: 'x', version: '1.0.0', scripts }, null, 2),
+      'package.json',
+    );
+
+  it.each([
+    'npx eslint .',
+    'npm run build && npx eslint .',
+    'FOO=1 npx tsc; echo done',
+  ])('reports %s', async (script) => {
+    const messages = await lint({ lint: script });
+    expect(messages.map((m) => m.ruleId)).toContain('no-restricted-syntax');
+  });
+
+  it.each(['eslint .', 'npm run build && eslint .', 'echo npxfoo'])(
+    'allows %s',
+    async (script) => {
+      const messages = await lint({ lint: script });
+      expect(messages.map((m) => m.ruleId)).not.toContain(
+        'no-restricted-syntax',
+      );
+    },
+  );
+});
