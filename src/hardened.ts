@@ -251,4 +251,6 @@ export const unicornExclusions: Record<string, string> = {
     'Conflicts with Prettier, which owns the spacing inside braces.',
   'template-indent':
     'Conflicts with Prettier, which owns the indentation of template literals.',
+  'prefer-iterator-concat':
+    'Unsatisfiable with unicorn/prefer-spread: that rule rejects a.concat(b) and this one rejects [...a, ...b], and Iterator.concat is not declared on IteratorConstructor in TypeScript 6, so neither form is accepted and the one it asks for does not compile.',
 };
