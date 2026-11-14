@@ -51,6 +51,38 @@ describe('hardenedRules', () => {
   });
 });
 
+describe('merging two arrays', () => {
+  it('is accepted in at least one form, which it is not when both rules are live', async () => {
+    const { ESLint } = await import('eslint');
+    const { default: config } = await import('../src/index.js');
+    const linter = new ESLint({
+      overrideConfigFile: true,
+      overrideConfig: config.configs.recommended,
+    });
+    const [spread] = await linter.lintText(
+      'export const c = [...[1], ...[2]];\n',
+      {
+        filePath: 'merge.ts',
+      },
+    );
+    const [concat] = await linter.lintText(
+      'export const c = [1].concat([2]);\n',
+      {
+        filePath: 'merge.ts',
+      },
+    );
+    const names = (result: typeof spread) =>
+      (result?.messages ?? []).map((message) => message.ruleId);
+    // One of the two forms must pass: prefer-spread rejects concat and
+    // prefer-iterator-concat rejects the spread, so with both live there is
+    // nothing left to write.
+    expect(
+      names(spread).includes('unicorn/prefer-iterator-concat') &&
+        names(concat).includes('unicorn/prefer-spread'),
+    ).toBe(false);
+  });
+});
+
 describe('unicornExclusions', () => {
   it('only names rules that exist in the installed unicorn', async () => {
     const { unicornExclusions } = await import('../src/hardened.js');
