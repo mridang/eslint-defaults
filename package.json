@@ -12,7 +12,8 @@
     "pretest": "npm run build",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --verbose --config=jest.config.mjs",
     "test:debug": "NODE_OPTIONS=--experimental-vm-modules jest --verbose --config=jest.config.mjs --detectOpenHandles",
-    "test:watch": "npm run test -- --watch"
+    "test:watch": "npm run test -- --watch",
+    "typecheck": "tsc --noEmit"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
