@@ -112,7 +112,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "2.2.3",
+  "version": "2.3.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
