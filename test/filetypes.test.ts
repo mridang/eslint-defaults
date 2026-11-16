@@ -38,6 +38,7 @@ const fileTypeCases = [
   'toml',
 ];
 
+const collator = new Intl.Collator();
 const configs = Array.isArray(eslintConfig) ? eslintConfig : [eslintConfig];
 
 const extensionPaths: Record<string, string> = {
@@ -199,7 +200,7 @@ function expectedRules(language: Language, typed: boolean): string[] {
   return Object.entries(rules)
     .filter(([, value]) => value !== 'off')
     .map(([name]) => name)
-    .toSorted((a, b) => a.localeCompare(b));
+    .toSorted((a, b) => collator.compare(a, b));
 }
 
 async function activeRules(

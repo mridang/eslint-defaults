@@ -1,4 +1,5 @@
 import type { ESLint, Linter } from 'eslint';
+import e18ePlugin from '@e18e/eslint-plugin';
 import eslintCommentsPlugin from '@eslint-community/eslint-plugin-eslint-comments';
 import githubPlugin from 'eslint-plugin-github';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
@@ -122,7 +123,7 @@ const LIBRARIES: HardenedLibrary[] = [
 
       'unescaped-html-literal':
         'Flags every string containing markup, which HTML-generating code needs.',
-      'array-foreach': 'Style opinion; forEach is fine.',
+      'array-foreach': 'Duplicates unicorn/no-array-for-each, which is on.',
 
       'filenames-match-regex': 'Would force every file to be renamed.',
       'no-then': 'We allow .then().',
@@ -134,6 +135,28 @@ const LIBRARIES: HardenedLibrary[] = [
     excluded: {
       'no-use':
         'Bans every directive comment, which the other rules already police.',
+    },
+  },
+  {
+    namespace: 'e18e',
+    plugin: e18ePlugin as unknown as ESLint.Plugin,
+    excluded: {
+      'prefer-array-fill':
+        'Contradicts unicorn/no-array-from-fill: its fix writes Array.from({ length: n }).fill(1), which that rule rejects. The callback form that rule keeps is also the safe one for objects, since .fill({}) shares one object between every slot.',
+      'prefer-get-or-insert':
+        'Map.prototype.getOrInsert does not exist on Node 24, so the auto-fix would break the code at runtime. Switch it on once the supported Node versions have it.',
+      'prefer-inline-equality':
+        'Rewrites [1, 2, 3].includes(x) as chained === checks. The rule has no option for a size limit, so it also rewrites longer lists, and the code gets longer and harder to read for a negligible speed gain.',
+      'prefer-slice-over-split-index':
+        'Replaces the one-line split(sep)[0] with two lines (indexOf, then slice with an explicit fallback for a missing separator) for a negligible speed gain on short strings.',
+      'prefer-string-fromcharcode':
+        'Contradicts unicorn/prefer-code-point, which wants String.fromCodePoint; the two would undo each other.',
+      'prefer-timer-args':
+        'setTimeout(fn, ms, arg) reads the argument when the timer is set rather than when it fires, a subtle change in behaviour for a negligible gain.',
+      'no-delete-property':
+        'Its suggestion turns delete obj.key into obj.key = undefined, which changes the result of in, Object.keys and Object.hasOwn.',
+      'no-indexof-equality':
+        'Needs type information but does not declare it, so it crashes on files without it, and its type-aware pass runs out of memory on large projects.',
     },
   },
   {
@@ -232,17 +255,14 @@ export function hardenedRules(): HardenedRules {
  * config, so these are switched off after it.
  */
 export const unicornExclusions: Record<string, string> = {
-  'consistent-function-scoping': 'Kept off by choice.',
-  'try-complexity': 'Kept off by choice.',
-  'no-keyword-prefix':
-    'Flags the React className prop, which cannot be renamed.',
-  'prevent-abbreviations':
-    'Fights our own naming convention and the standard names in our frameworks (req, res, env, db, ctx).',
+  'consistent-function-scoping':
+    'Kept off by choice: it reports almost only code that is fine as written, such as a small formatter next to its only use or a React event handler inside its component, and most hits are in tests.',
+  'try-complexity':
+    'Kept off by choice: fixing the existing code is a large refactor for little gain, and an oversized try block is caught in review. If the code is ever cleaned up, max: 5 is the setting to start with.',
   'no-null':
-    'null is required by JSON, DOM, databases and React refs, and the autofix cannot tell where.',
-  'no-useless-undefined': 'Kept off by choice.',
-  'no-array-for-each': 'Kept off by choice.',
-  'no-array-reduce': 'Kept off by choice.',
+    'null is required by JSON, the DOM, databases (a missing column is null, and binding undefined drops the value) and React refs, and the rule cannot tell where. Enabling it is tracked in mridang/eslint-defaults#157.',
+  'no-array-reduce':
+    'Kept off by choice: it reports 85 reductions and its auto-fix repairs only one of them, so enabling it means rewriting the rest by hand.',
   'number-literal-case':
     'Conflicts with Prettier, which writes hex digits in lower case.',
   'no-nested-ternary':
@@ -251,4 +271,54 @@ export const unicornExclusions: Record<string, string> = {
     'Conflicts with Prettier, which owns the spacing inside braces.',
   'template-indent':
     'Conflicts with Prettier, which owns the indentation of template literals.',
+};
+
+/**
+ * The abbreviations unicorn/prevent-abbreviations leaves alone. They are
+ * conventional and read clearly here. The list is deliberately short: single
+ * letters (i, j, e) and ambiguous words (doc, docs, rel, str) are still reported.
+ */
+const ALLOWED_ABBREVIATIONS = [
+  'req',
+  'res',
+  'db',
+  'ctx',
+  'err',
+  'env',
+  'args',
+  'params',
+  'props',
+  'opts',
+  'idx',
+  'arg',
+  'tmp',
+  'pkg',
+  'fn',
+  'acc',
+  'ref',
+  'src',
+  'msg',
+  'dir',
+];
+
+/**
+ * Unicorn rules that run with options, or that unicorn's own `all` config
+ * leaves off but we switch on. They are applied after `all` and the exclusions.
+ */
+export const unicornRuleSettings: Linter.RulesRecord = {
+  // Arrow bodies such as .catch(() => undefined) are clearer than () => {}.
+  // A function that returns a value on some paths needs an explicit return
+  // type, which makes this rule leave `return undefined` alone and satisfies
+  // sonarjs/no-inconsistent-returns.
+  'unicorn/no-useless-undefined': ['error', { checkArrowFunctionBody: false }],
+  'unicorn/prevent-abbreviations': [
+    'error',
+    {
+      replacements: Object.fromEntries(
+        ALLOWED_ABBREVIATIONS.map((word) => [word, false]),
+      ),
+    },
+  ],
+  // Switched off in unicorn's `all` config; there are no findings in any repository.
+  'unicorn/no-negated-condition': 'error',
 };

@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { projectCssWhitelist } from './css-classes.js';
-import { normalizeConfig } from './utils.js';
+import { normalizeConfig } from './utilities.js';
 
 /** What the Tailwind lint plugin contributes to a project: nothing, or a plugin with its rules and settings. */
 interface TailwindSupport {
@@ -35,12 +35,13 @@ const CSS_ENTRY_CANDIDATES = [
   'index.css',
 ] as const;
 
+/** An `@import` of Tailwind 4, including sub-paths. */
+const TAILWIND_IMPORT = /@import\s+['"]tailwindcss(?:\/[^'"]*)?['"]/;
+
 /** Whether a CSS file pulls in Tailwind 4 (`@import "tailwindcss"`, including sub-paths). */
 async function importsTailwind(file: string): Promise<boolean> {
   try {
-    return /@import\s+['"]tailwindcss(?:\/[^'"]*)?['"]/.test(
-      await fs.readFile(file, 'utf8'),
-    );
+    return TAILWIND_IMPORT.test(await fs.readFile(file, 'utf8'));
   } catch {
     return false;
   }
@@ -155,6 +156,8 @@ async function withProjectClasses(
 const V3_SETTINGS = {
   tailwindcss: {
     callees: ['twMerge', 'createTheme'],
+    // The Tailwind 3 plugin reads this setting by name.
+    // eslint-disable-next-line unicorn/no-keyword-prefix -- the name is fixed by the plugin
     classRegex: '^(class(Name)|theme)?$',
   },
 } as const;

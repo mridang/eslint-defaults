@@ -22,12 +22,27 @@ const IGNORED_DIRECTORIES = new Set([
   'coverage',
 ]);
 
+/** Character code of `/`. */
+const SLASH = 47;
+
+/** Splits text into lines on either line ending. */
+const LINE_BREAK = /\r?\n/;
+
+/** A `.gitignore` line that is a comment, a negation or a glob rather than a plain name. */
+const COMMENT_OR_GLOB = /(?:^[#!])|[*?[\]/]/;
+
+/** The name of a Tailwind 4 `@utility` at-rule. */
+const UTILITY_AT_RULE = /^@utility\s+([^\s]+)/i;
+
+/** Compares text the way `localeCompare` does, building the collator once. */
+const COLLATOR = new Intl.Collator();
+
 /** The text without the slashes at either end. */
 function trimSlashes(text: string): string {
   let start = 0;
   let end = text.length;
-  while (start < end && text[start] === '/') start += 1;
-  while (end > start && text[end - 1] === '/') end -= 1;
+  while (start < end && text.codePointAt(start) === SLASH) start += 1;
+  while (end > start && text.codePointAt(end - 1) === SLASH) end -= 1;
   return text.slice(start, end);
 }
 
@@ -56,9 +71,9 @@ async function gitignoredDirectories(
     const lines = await fs.readFile(path.join(root, '.gitignore'), 'utf8');
     return new Set(
       lines
-        .split(/\r?\n/)
+        .split(LINE_BREAK)
         .map((line) => trimSlashes(line.trim()))
-        .filter((line) => line && !/(?:^[#!])|[*?[\]/]/.test(line)),
+        .filter((line) => line && !COMMENT_OR_GLOB.test(line)),
     );
   } catch {
     return new Set();
@@ -89,7 +104,7 @@ export async function findCssFiles(root: string): Promise<string[]> {
     }
   };
   await walk(root);
-  return found.toSorted((a, b) => a.localeCompare(b));
+  return found.toSorted((a, b) => COLLATOR.compare(a, b));
 }
 
 /** Comments, strings, `url(...)` and escape pairs, in one pass so each is seen in its own context. */
@@ -165,9 +180,7 @@ export function extractClassNames(css: string): Set<string> {
   const names = new Set<string>();
   const clean = stripNoise(css);
   for (const text of preludes(clean)) {
-    const utility = text.startsWith('@')
-      ? /^@utility\s+([^\s]+)/i.exec(text)
-      : null;
+    const utility = text.startsWith('@') ? UTILITY_AT_RULE.exec(text) : null;
     if (utility?.[1]) {
       names.add(unescapeIdentifier(utility[1]));
     } else if (!text.startsWith('@') || SELECTOR_AT_RULES.test(text)) {
@@ -207,7 +220,7 @@ export function toWhitelist(names: Iterable<string>): string[] {
       entries.add(name);
     }
   }
-  return [...entries].toSorted((a, b) => a.localeCompare(b));
+  return [...entries].toSorted((a, b) => COLLATOR.compare(a, b));
 }
 
 /** The classes defined by the project's own stylesheets under `root`, as `whitelist` entries. */

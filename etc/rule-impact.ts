@@ -219,7 +219,7 @@ export function classifyRules(
         hits: [],
       };
     })
-    .toSorted((left, right) => left.name.localeCompare(right.name));
+    .toSorted((left, right) => COLLATOR.compare(left.name, right.name));
 }
 
 /**
@@ -243,6 +243,9 @@ export function sampleHits(hits: Hit[], max: number): Hit[] {
   }
   return picked;
 }
+
+const COLLATOR = new Intl.Collator();
+const CRASHED_RULE = /Rule: "([^"]+)"/;
 
 const escapeHtml = (text: string): string =>
   text
@@ -651,13 +654,13 @@ async function loadLibrary(
     const rules = (plugin.rules ?? {}) as Record<string, unknown>;
     const descriptors = Object.entries(rules).map(([name, rule]) => {
       const meta = (rule as { meta?: Record<string, unknown> }).meta ?? {};
-      const docs = (meta.docs ?? {}) as Record<string, unknown>;
+      const documentation = (meta.docs ?? {}) as Record<string, unknown>;
       return {
         name,
-        description: String(docs.description ?? ''),
+        description: String(documentation.description ?? ''),
         deprecated: Boolean(meta.deprecated),
         typed:
-          Boolean(docs.requiresTypeChecking) ||
+          Boolean(documentation.requiresTypeChecking) ||
           Boolean(definition.typedRules?.includes(name)),
       };
     });
@@ -739,7 +742,7 @@ async function findRepos(
   return candidates
     .filter((_entry, index) => withGit[index])
     .map((entry) => entry.name)
-    .toSorted((a, b) => a.localeCompare(b));
+    .toSorted((a, b) => COLLATOR.compare(a, b));
 }
 
 /**
@@ -861,7 +864,7 @@ async function lintRepoRecovering(
       return await lintRepo(orgDir, repo, makeConfig(), rulesByQualifiedName);
     } catch (error) {
       const message = messageOf(error);
-      const crashed = /Rule: "([^"]+)"/.exec(message)?.[1];
+      const crashed = CRASHED_RULE.exec(message)?.[1];
       const rule = crashed ? rulesByQualifiedName.get(crashed) : undefined;
       if (!rule?.enabled) {
         return { error: message.split('\n', 1)[0] };
@@ -1023,7 +1026,7 @@ async function main(): Promise<void> {
     ),
   );
   await Promise.all(
-    [...wanted].map(async (full) => {
+    Array.from(wanted, async (full) => {
       lineCache.set(
         full,
         await fs
