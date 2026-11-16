@@ -1,4 +1,5 @@
-import { ESLint } from 'eslint';
+import { describe, expect, it, test } from '@jest/globals';
+import { ESLint, type Linter } from 'eslint';
 import { hardenedRules, jsdocTypeRules } from '../src/hardened.js';
 import eslintConfig from '../eslint.config.mjs';
 import { COVERAGE_SOURCES, MARKER_CODE } from './utils/coverage-sources.js';
@@ -39,7 +40,9 @@ const fileTypeCases = [
 ];
 
 const collator = new Intl.Collator();
-const configs = Array.isArray(eslintConfig) ? eslintConfig : [eslintConfig];
+const configs = (
+  Array.isArray(eslintConfig) ? eslintConfig : [eslintConfig]
+) as Linter.Config[];
 
 const extensionPaths: Record<string, string> = {
   md: 'docs/readme.md/code.js',
@@ -207,7 +210,8 @@ async function activeRules(
   filePath: string,
 ): Promise<{ rules: Set<string>; project: unknown }> {
   const eslint = new ESLint({ cwd: process.cwd() });
-  const config = await eslint.calculateConfigForFile(filePath);
+  const config = (await eslint.calculateConfigForFile(filePath)) as
+    Linter.Config | undefined;
   const active = Object.entries(config?.rules ?? {})
     .filter(([, value]) => {
       const level = Array.isArray(value) ? value[0] : value;
@@ -449,7 +453,8 @@ describe('no file kind is given a rule from a plugin that is not loaded', () => 
       if (await eslint.isPathIgnored(filePath)) {
         continue;
       }
-      const config = await eslint.calculateConfigForFile(filePath);
+      const config = (await eslint.calculateConfigForFile(filePath)) as
+        Linter.Config | undefined;
       const plugins = Object.keys(config?.plugins ?? {});
       for (const [rule, value] of Object.entries(config?.rules ?? {})) {
         const level = Array.isArray(value) ? value[0] : value;
@@ -472,7 +477,8 @@ describe('no file kind is given a rule from a plugin that is not loaded', () => 
 describe('rules adjusted for Prettier, frameworks and tests', () => {
   const eslint = new ESLint({ overrideConfigFile: 'eslint.config.mjs' });
   const ruleOf = async (file: string, rule: string): Promise<unknown> => {
-    const config = await eslint.calculateConfigForFile(file);
+    const config = (await eslint.calculateConfigForFile(file)) as
+      Linter.Config | undefined;
     return config?.rules?.[rule];
   };
 
@@ -552,7 +558,7 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
 });
 
 describe('npx in package.json scripts', () => {
-  const lint = (scripts: Record<string, string>) =>
+  const lint = async (scripts: Record<string, string>) =>
     lintMessages(
       JSON.stringify({ name: 'x', version: '1.0.0', scripts }, null, 2),
       'package.json',

@@ -607,7 +607,7 @@ async function installPlugins(
     }),
   );
   const present = await Promise.all(
-    LIBRARIES.map((library) =>
+    LIBRARIES.map(async (library) =>
       exists(path.join(cacheDir, 'node_modules', library.pkg)),
     ),
   );
@@ -657,7 +657,10 @@ async function loadLibrary(
       const documentation = (meta.docs ?? {}) as Record<string, unknown>;
       return {
         name,
-        description: String(documentation.description ?? ''),
+        description:
+          typeof documentation.description === 'string'
+            ? documentation.description
+            : '',
         deprecated: Boolean(meta.deprecated),
         typed:
           Boolean(documentation.requiresTypeChecking) ||
@@ -701,7 +704,7 @@ function preflight(library: LoadedLibrary, rules: RuleInfo[]): void {
             files: ['**/*.ts'],
             languageOptions: { parser: typescriptParser },
             plugins: {
-              [library.definition.namespace]: library.plugin as ESLint.Plugin,
+              [library.definition.namespace]: library.plugin!,
             },
             ...(library.definition.settings
               ? { settings: library.definition.settings }
@@ -737,7 +740,9 @@ async function findRepos(
     (entry) => entry.isDirectory() && (!only || only.has(entry.name)),
   );
   const withGit = await Promise.all(
-    candidates.map((entry) => exists(path.join(orgDir, entry.name, '.git'))),
+    candidates.map(async (entry) =>
+      exists(path.join(orgDir, entry.name, '.git')),
+    ),
   );
   return candidates
     .filter((_entry, index) => withGit[index])
@@ -916,7 +921,7 @@ async function main(): Promise<void> {
 
   await installPlugins(cacheDir, Boolean(values.refresh));
   const loaded = await Promise.all(
-    selected.map((library) => loadLibrary(library, cacheDir)),
+    selected.map(async (library) => loadLibrary(library, cacheDir)),
   );
   const rules = new Map<string, RuleInfo[]>();
   const byQualifiedName = new Map<string, RuleInfo>();

@@ -15,8 +15,8 @@ export function matchesFileGlob(
     return true;
   }
   const patterns = (Array.isArray(files) ? files.flat() : [files]).filter(
-    Boolean,
-  ) as string[];
+    (pattern) => typeof pattern === 'string',
+  );
   return patterns.some((pattern) =>
     minimatch(filePath, pattern, { dot: true }),
   );
@@ -35,8 +35,8 @@ export function matchesIgnores(
     return false;
   }
   const patterns = (Array.isArray(ignores) ? ignores.flat() : [ignores]).filter(
-    Boolean,
-  ) as string[];
+    (pattern) => typeof pattern === 'string',
+  );
   return patterns.some((pattern) =>
     minimatch(filePath, pattern, { dot: true }),
   );

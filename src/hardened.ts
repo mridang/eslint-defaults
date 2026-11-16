@@ -1,5 +1,6 @@
 import type { ESLint, Linter } from 'eslint';
 import e18ePlugin from '@e18e/eslint-plugin';
+import typescriptPlugin from '@typescript-eslint/eslint-plugin';
 import eslintCommentsPlugin from '@eslint-community/eslint-plugin-eslint-comments';
 import githubPlugin from 'eslint-plugin-github';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
@@ -61,7 +62,8 @@ const NEEDS_OPTIONS = 'Matches nothing without options, so it is only noise.';
 const LIBRARIES: HardenedLibrary[] = [
   {
     namespace: 'promise',
-    plugin: promisePlugin as unknown as ESLint.Plugin,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- the plugin ships no types, so its value is any
+    plugin: promisePlugin,
     excluded: {
       'avoid-new':
         'Bans every new Promise(), including correct wrappers around callback APIs and timers.',
@@ -72,7 +74,7 @@ const LIBRARIES: HardenedLibrary[] = [
   },
   {
     namespace: 'sonarjs',
-    plugin: sonarjsPlugin as unknown as ESLint.Plugin,
+    plugin: sonarjsPlugin,
     excluded: {
       'file-name-differ-from-class':
         'Clashes with framework-fixed file names and with our own file naming convention.',
@@ -96,7 +98,7 @@ const LIBRARIES: HardenedLibrary[] = [
   },
   {
     namespace: 'jsdoc',
-    plugin: jsdocPlugin as unknown as ESLint.Plugin,
+    plugin: jsdocPlugin,
     excluded: {
       'require-example':
         'Kept off by choice: an @example on every function would be generated, untested and go stale.',
@@ -116,7 +118,8 @@ const LIBRARIES: HardenedLibrary[] = [
   },
   {
     namespace: 'github',
-    plugin: githubPlugin as unknown as ESLint.Plugin,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- the plugin ships no types, so its value is any
+    plugin: githubPlugin,
     excluded: {
       'no-dataset':
         'We follow unicorn/dom-node-dataset (.dataset); the two rules contradict each other.',
@@ -131,7 +134,7 @@ const LIBRARIES: HardenedLibrary[] = [
   },
   {
     namespace: '@eslint-community/eslint-comments',
-    plugin: eslintCommentsPlugin as unknown as ESLint.Plugin,
+    plugin: eslintCommentsPlugin,
     excluded: {
       'no-use':
         'Bans every directive comment, which the other rules already police.',
@@ -139,7 +142,7 @@ const LIBRARIES: HardenedLibrary[] = [
   },
   {
     namespace: 'e18e',
-    plugin: e18ePlugin as unknown as ESLint.Plugin,
+    plugin: e18ePlugin,
     excluded: {
       'prefer-array-fill':
         'Contradicts unicorn/no-array-from-fill: its fix writes Array.from({ length: n }).fill(1), which that rule rejects. The callback form that rule keeps is also the safe one for objects, since .fill({}) shares one object between every slot.',
@@ -161,12 +164,12 @@ const LIBRARIES: HardenedLibrary[] = [
   },
   {
     namespace: 'unused-imports',
-    plugin: unusedImportsPlugin as unknown as ESLint.Plugin,
+    plugin: unusedImportsPlugin,
     excluded: {},
   },
   {
     namespace: 'n',
-    plugin: nPlugin as unknown as ESLint.Plugin,
+    plugin: nPlugin,
     excluded: {
       'no-extraneous-import': 'Cannot follow workspace and nested manifests.',
       'no-extraneous-require': 'Cannot follow workspace and nested manifests.',
@@ -322,3 +325,211 @@ export const unicornRuleSettings: Linter.RulesRecord = {
   // Switched off in unicorn's `all` config; there are no findings in any repository.
   'unicorn/no-negated-condition': 'error',
 };
+
+/**
+ * typescript-eslint rules switched on in addition to its `recommended` set,
+ * decided one by one against 34 repositories (mridang/eslint-defaults#139).
+ * Rules without options run with their defaults. A rule listed with options
+ * says in a comment why it needs them.
+ */
+export const typescriptRuleSettings: Linter.RulesRecord = {
+  // No findings in any repository today: they only guard new code.
+  '@typescript-eslint/adjacent-overload-signatures': 'error',
+  '@typescript-eslint/ban-tslint-comment': 'error',
+  '@typescript-eslint/consistent-type-assertions': 'error',
+  '@typescript-eslint/consistent-type-exports': 'error',
+  '@typescript-eslint/no-array-delete': 'error',
+  '@typescript-eslint/no-confusing-non-null-assertion': 'error',
+  '@typescript-eslint/no-for-in-array': 'error',
+  '@typescript-eslint/no-implied-eval': 'error',
+  '@typescript-eslint/no-meaningless-void-operator': 'error',
+  '@typescript-eslint/no-mixed-enums': 'error',
+  '@typescript-eslint/no-non-null-asserted-nullish-coalescing': 'error',
+  '@typescript-eslint/no-unnecessary-parameter-property-assignment': 'error',
+  '@typescript-eslint/no-unnecessary-qualifier': 'error',
+  '@typescript-eslint/no-unsafe-unary-minus': 'error',
+  '@typescript-eslint/no-useless-empty-export': 'error',
+  '@typescript-eslint/prefer-find': 'error',
+  '@typescript-eslint/prefer-for-of': 'error',
+  '@typescript-eslint/prefer-literal-enum-member': 'error',
+  '@typescript-eslint/prefer-reduce-type-parameter': 'error',
+  '@typescript-eslint/prefer-regexp-exec': 'error',
+  '@typescript-eslint/prefer-return-this-type': 'error',
+  '@typescript-eslint/related-getter-setter-pairs': 'error',
+  '@typescript-eslint/require-array-sort-compare': 'error',
+  '@typescript-eslint/restrict-plus-operands': 'error',
+
+  // An auto-fix or only a handful of findings.
+  '@typescript-eslint/await-thenable': 'error',
+  '@typescript-eslint/consistent-generic-constructors': 'error',
+  '@typescript-eslint/consistent-type-imports': 'error',
+  '@typescript-eslint/default-param-last': 'error',
+  '@typescript-eslint/dot-notation': 'error',
+  '@typescript-eslint/no-duplicate-type-constituents': 'error',
+  '@typescript-eslint/no-generated-empty-object-type': 'error',
+  '@typescript-eslint/no-import-type-side-effects': 'error',
+  '@typescript-eslint/no-inferrable-types': 'error',
+  '@typescript-eslint/no-redundant-type-constituents': 'error',
+  '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'error',
+  '@typescript-eslint/no-unnecessary-template-expression': 'error',
+  '@typescript-eslint/no-unnecessary-type-arguments': 'error',
+  '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+  '@typescript-eslint/no-useless-constructor': 'error',
+  '@typescript-eslint/no-useless-default-assignment': 'error',
+  '@typescript-eslint/non-nullable-type-assertion-style': 'error',
+  '@typescript-eslint/prefer-function-type': 'error',
+  '@typescript-eslint/prefer-includes': 'error',
+  '@typescript-eslint/prefer-optional-chain': 'error',
+  '@typescript-eslint/prefer-readonly': 'error',
+  '@typescript-eslint/prefer-string-starts-ends-with': 'error',
+  '@typescript-eslint/promise-function-async': 'error',
+  '@typescript-eslint/return-await': 'error',
+  '@typescript-eslint/use-unknown-in-catch-callback-variable': 'error',
+
+  // Rules that catch real bugs, reviewed one at a time.
+  '@typescript-eslint/no-base-to-string': 'error',
+  // A static method cannot lose `this`, so it is not reported.
+  '@typescript-eslint/unbound-method': ['error', { ignoreStatic: true }],
+  '@typescript-eslint/no-misused-promises': 'error',
+  '@typescript-eslint/no-misused-spread': 'error',
+  '@typescript-eslint/no-unnecessary-type-conversion': 'error',
+  '@typescript-eslint/restrict-template-expressions': 'error',
+  // Passing an error on as it arrived (typed any or unknown) is fine; a string
+  // or an object literal is still reported.
+  '@typescript-eslint/prefer-promise-reject-errors': [
+    'error',
+    { allowThrowingAny: true, allowThrowingUnknown: true },
+  ],
+  // At its default strictness the rule reports a missing case even when the
+  // switch has a default branch. This reports only a switch over a union that
+  // has no default and misses a value, for example after a member is added.
+  '@typescript-eslint/switch-exhaustiveness-check': [
+    'error',
+    { considerDefaultExhaustiveForUnions: true },
+  ],
+  // The Chrome typings mark part of the `chrome` global as the deprecated
+  // Chrome Apps platform, which does not apply to browser extensions.
+  '@typescript-eslint/no-deprecated': [
+    'error',
+    { allow: [{ from: 'package', package: '@types/chrome', name: 'chrome' }] },
+  ],
+  // The apps throw an HTTP Response on purpose to end a request handler. Any
+  // other value that is not an Error is still reported. A project with the
+  // DOM library declares Response in the lib; a Node-only project gets it from
+  // the types that ship with Node.
+  '@typescript-eslint/only-throw-error': [
+    'error',
+    {
+      allow: [
+        { from: 'lib', name: 'Response' },
+        { from: 'package', package: 'undici-types', name: 'Response' },
+      ],
+    },
+  ],
+  // `any` leaking into typed code. Most findings come from a few untyped
+  // imports; type those once and the rest follows.
+  '@typescript-eslint/no-unsafe-argument': 'error',
+  '@typescript-eslint/no-unsafe-assignment': 'error',
+  '@typescript-eslint/no-unsafe-call': 'error',
+  '@typescript-eslint/no-unsafe-enum-assignment': 'error',
+  '@typescript-eslint/no-unsafe-enum-comparison': 'error',
+  '@typescript-eslint/no-unsafe-member-access': 'error',
+  '@typescript-eslint/no-unsafe-return': 'error',
+};
+
+const NOT_DECIDED =
+  'Not decided yet: the findings are listed in mridang/eslint-defaults#139 and the rule stays off until that review reaches it.';
+
+/**
+ * The typescript-eslint rules left off, with the reason. Every rule of the
+ * plugin is either on (its `recommended` set or the settings above) or listed
+ * here, and a test enforces that.
+ */
+export const typescriptExclusions: Record<string, string> = {
+  // Judged and kept off.
+  'no-magic-numbers':
+    'Reports every bare number, including 0, 1, 2 and HTTP status codes: 29,067 findings across the repositories, 72% of them in tests, and no auto-fix. Making it useful means ignoring most of what it checks.',
+  'naming-convention':
+    'Needs a configuration per repository: API payloads and database columns use snake_case, and about 11,800 names would have to be listed or renamed.',
+  'prefer-readonly-parameter-types':
+    'Demands readonly types on every parameter: about 6,600 findings, no auto-fix, and little gain over what TypeScript already checks.',
+  'explicit-function-return-type':
+    'TypeScript infers return types, and requiring them everywhere is about 3,800 findings of upkeep.',
+  'explicit-module-boundary-types':
+    'Overlaps explicit-function-return-type, which is off for the same reason.',
+  'explicit-member-accessibility':
+    'Forces a public keyword on every class member (about 1,900 findings) for no safety gain.',
+  'strict-boolean-expressions':
+    'Bans ordinary truthiness checks such as if (value); far too strict, about 1,600 findings.',
+  'no-non-null-assertion':
+    'The ! operator is a deliberate escape hatch used in about 900 places; the no-unsafe-* rules cover the real risks.',
+  'max-params': 'An arbitrary limit.',
+  'method-signature-style':
+    'A style opinion (method versus property signature) with no safety benefit.',
+  'no-use-before-define':
+    'TypeScript already reports use before definition, and function and class order is a style matter.',
+  'member-ordering':
+    'The order of class members is handled by the perfectionist plugin.',
+  'parameter-properties':
+    'Bans the constructor parameter-property shorthand that our classes and NestJS use.',
+  'class-methods-use-this':
+    'Noisy for methods that implement an interface or a framework contract.',
+  'prefer-destructuring': 'A style opinion.',
+  'no-empty-function':
+    'No-op callbacks such as () => {} are common and intentional.',
+  'consistent-indexed-object-style':
+    'A style opinion (Record versus index signature).',
+  'array-type': 'A style opinion (T[] versus Array<T>).',
+  'no-dynamic-delete':
+    'delete obj[key] on a dictionary is a normal operation, and the rule only flags the dynamic key.',
+  'consistent-return':
+    'Duplicates sonarjs/no-inconsistent-returns, which is on.',
+  'consistent-type-definitions':
+    'A style opinion (interface versus type alias).',
+  'no-extraneous-class':
+    'Flags classes with only static members, which are used on purpose.',
+  'no-unnecessary-type-parameters': 'Noisy for generic helpers.',
+  'unified-signatures': 'A style opinion.',
+  'no-invalid-void-type': 'A style opinion.',
+  'no-unused-private-class-members':
+    'Duplicates the base ESLint rule of the same name, which is on.',
+  'no-dupe-class-members':
+    'TypeScript and the base ESLint rule already report duplicate class members.',
+  'no-redeclare':
+    'TypeScript and the base ESLint rule already report redeclared variables.',
+  'no-invalid-this':
+    'TypeScript already reports an invalid this with noImplicitThis.',
+  'init-declarations':
+    'Forces initialisation at the declaration, which clashes with a let that is assigned inside a try.',
+  'no-restricted-types': 'Matches nothing without options.',
+  'class-literal-property-style':
+    'A style opinion with no benefit that justifies it.',
+  'prefer-enum-initializers':
+    'A style opinion with no benefit that justifies it.',
+
+  // Still to be decided.
+  'strict-void-return': `${NOT_DECIDED} Leaning off: 167 findings of mostly idiomatic code (promisify(exec), Jest mocks), and the promise cases are covered by no-misused-promises and no-floating-promises.`,
+  'no-unsafe-type-assertion': NOT_DECIDED,
+  'require-await': NOT_DECIDED,
+  'no-confusing-void-expression': NOT_DECIDED,
+  'prefer-nullish-coalescing': NOT_DECIDED,
+  'no-unnecessary-condition': NOT_DECIDED,
+  'no-shadow': NOT_DECIDED,
+};
+
+/**
+ * The rules of typescriptRuleSettings that need type information, which
+ * cannot run on files outside a tsconfig.
+ * @returns The rule names, with the plugin prefix.
+ */
+export function typescriptTypedRules(): string[] {
+  const rules = (typescriptPlugin.rules ?? {}) as Record<
+    string,
+    { meta?: RuleMeta }
+  >;
+  return Object.keys(typescriptRuleSettings).filter(
+    (name) =>
+      rules[name.replace('@typescript-eslint/', '')]?.meta?.docs
+        ?.requiresTypeChecking,
+  );
+}

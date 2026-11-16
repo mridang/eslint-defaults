@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals';
 import { loadESLint } from 'eslint';
 
 describe('lint configuration test', () => {
