@@ -84,7 +84,7 @@ export function tailwindMajorVersion(cwd: string): number | undefined {
 function recommendedRules(plugin: {
   configs?: Record<string, unknown>;
 }): Readonly<Linter.RulesRecord> {
-  const rules = normalizeConfig(plugin.configs?.['recommended']).rules ?? {};
+  const rules = normalizeConfig(plugin.configs?.recommended).rules ?? {};
   return Object.fromEntries(
     Object.entries(rules).flatMap(([name, setting]) =>
       setting === undefined ? [] : [[name, setting]],
@@ -186,6 +186,7 @@ export async function tailwindSupport(
   if (major <= 3) {
     return {
       plugin: tailwindV3 as ESLint.Plugin,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- the plugin ships no types, so its value is any
       rules: recommendedRules(tailwindV3),
       settings: V3_SETTINGS,
     };
@@ -195,6 +196,7 @@ export async function tailwindSupport(
     plugin: tailwindV4 as ESLint.Plugin,
     rules: cssConfigPath
       ? await withProjectClasses(
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- the plugin ships no types, so its value is any
           { ...recommendedRules(tailwindV4), ...V4_DISABLED_RULES },
           cwd,
         )

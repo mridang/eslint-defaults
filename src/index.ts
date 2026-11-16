@@ -40,6 +40,8 @@ import {
   hardenedRules,
   hardenedSettings,
   jsdocTypeRules,
+  typescriptRuleSettings,
+  typescriptTypedRules,
   unicornExclusions,
   unicornRuleSettings,
 } from './hardened.js';
@@ -135,8 +137,10 @@ const reactPlugins = {
   'testing-library': testingLibraryPlugin,
   react: fixupPluginRules(reactPlugin as unknown as ESLint.Plugin),
   'react-hooks': reactHooksPlugin,
-  'jsx-a11y': fixupPluginRules(jsxA11yPlugin as unknown as ESLint.Plugin),
-  import: fixupPluginRules(importPlugin as unknown as ESLint.Plugin),
+  /* eslint-disable @typescript-eslint/no-unsafe-argument -- the plugin ships no types, so its value is any */
+  'jsx-a11y': fixupPluginRules(jsxA11yPlugin),
+  import: fixupPluginRules(importPlugin),
+  /* eslint-enable @typescript-eslint/no-unsafe-argument -- end of the untyped plugin values */
   perfectionist: perfectionistPlugin,
   unicorn: unicornPlugin,
 };
@@ -144,6 +148,7 @@ const tsPlugins = {
   ...reactPlugins,
   '@typescript-eslint': typescriptPlugin,
 };
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- the plugin ships no types, so its value is any */
 const reactRuleBase: Linter.RulesRecord = {
   ...jsPlugin.configs.recommended.rules,
   ...tailwind.rules,
@@ -159,10 +164,12 @@ const reactRuleBase: Linter.RulesRecord = {
   ...unicornRuleSettings,
   'react/prop-types': 'off',
 };
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- end of the untyped plugin values */
 const tsRules: Linter.RulesRecord = {
   ...reactRuleBase,
   ...typescriptPlugin.configs.recommended.rules,
   '@typescript-eslint/no-floating-promises': 'error',
+  ...typescriptRuleSettings,
   'no-undef': 'off',
   ...hardened.untyped,
   ...hardened.typed,
@@ -179,6 +186,7 @@ const jsRules: Linter.RulesRecord = {
 const untypedOnly: Linter.RulesRecord = Object.fromEntries(
   [
     ...Object.keys(hardened.typed),
+    ...typescriptTypedRules(),
     '@typescript-eslint/no-floating-promises',
   ].map((name) => [name, 'off']),
 );
@@ -239,6 +247,7 @@ const jsonConfigs: Linter.Config[] = [
   makeJsonConfig(['**/*.json5'], 'json/json5'),
 ];
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- the plugin ships no types, so its value is any */
 const recommended: Linter.Config[] = [
   {
     ignores: [
@@ -567,6 +576,7 @@ const recommended: Linter.Config[] = [
     },
   },
 ];
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- end of the untyped plugin values */
 
 const config: ESLint.Plugin = {
   meta: {

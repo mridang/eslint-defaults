@@ -124,7 +124,7 @@ function stripNoise(css: string): string {
   return css.replaceAll(NOISE, (match) => {
     if (match.startsWith('/*')) return ' ';
     if (match.startsWith('\\')) return match;
-    if (match[0] === '"' || match[0] === "'") return '""';
+    if (match.startsWith('"') || match.startsWith("'")) return '""';
     return 'url()';
   });
 }
