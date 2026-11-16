@@ -87,10 +87,29 @@ describe('unicornRuleSettings', () => {
 /** Rules of the plugins under test. */
 const RELEVANT_RULE = /^(e18e|unicorn|sonarjs)\//u;
 
+/**
+ * Lints a snippet without type information. A typed program reads the file
+ * from disk, so its comment positions would not match a snippet linted under
+ * a real path. The rules under test do not need types.
+ */
+const UNTYPED_PARSER = {
+  files: ['**/*.ts'],
+  languageOptions: { parserOptions: { projectService: false, project: false } },
+  rules: Object.fromEntries(
+    [
+      ...Object.keys(rules.typed),
+      '@typescript-eslint/no-floating-promises',
+    ].map((name) => [name, 'off']),
+  ),
+} as const;
+
 const lintRuleIds = async (text: string): Promise<string[]> => {
-  const eslint = new ESLint({ cwd: process.cwd() });
+  const eslint = new ESLint({
+    cwd: process.cwd(),
+    overrideConfig: [UNTYPED_PARSER],
+  });
   const [result] = await eslint.lintText(text, {
-    filePath: 'src/utilities.ts',
+    filePath: 'src/example/rules.ts',
   });
   return result.messages
     .map((message) => message.ruleId ?? '')
