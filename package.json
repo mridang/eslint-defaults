@@ -63,6 +63,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@e18e/eslint-plugin": "^0.8.1",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/compat": "^2.1.1",
     "@eslint/css": "^0.14.1",

@@ -9,8 +9,9 @@ import {
   toWhitelist,
 } from '../src/css-classes.js';
 
+const collator = new Intl.Collator();
 const classes = (css: string): string[] =>
-  [...extractClassNames(css)].toSorted((a, b) => a.localeCompare(b));
+  [...extractClassNames(css)].toSorted((a, b) => collator.compare(a, b));
 
 describe('extractClassNames', () => {
   it('reads plain, compound and combined selectors', () => {

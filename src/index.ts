@@ -7,9 +7,11 @@ import jsonLanguagePlugin from '@eslint/json';
 import markdownPlugin from '@eslint/markdown';
 import jsPlugin from '@eslint/js';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
+// eslint-disable-next-line e18e/ban-dependencies -- the preset's React rule set is built on this plugin; moving to the suggested replacement is a separate change
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
+// eslint-disable-next-line e18e/ban-dependencies -- the preset's import rule set is built on this plugin; moving to the suggested replacement is a separate change
 import importPlugin from 'eslint-plugin-import';
 import unicornPlugin from 'eslint-plugin-unicorn';
 import perfectionistPlugin from 'eslint-plugin-perfectionist';
@@ -39,6 +41,7 @@ import {
   hardenedSettings,
   jsdocTypeRules,
   unicornExclusions,
+  unicornRuleSettings,
 } from './hardened.js';
 import {
   EMBEDDED_EXTENSIONS,
@@ -48,7 +51,7 @@ import {
   filesGlobs,
   blockGlobs,
 } from './languages.js';
-import { normalizeConfig, normalizeConfigArray } from './utils.js';
+import { normalizeConfig, normalizeConfigArray } from './utilities.js';
 import { createRequire } from 'node:module';
 
 const prettierRules = (normalizeConfig(prettierPlugin.configs?.recommended)
@@ -153,6 +156,7 @@ const reactRuleBase: Linter.RulesRecord = {
   ...Object.fromEntries(
     Object.keys(unicornExclusions).map((name) => [`unicorn/${name}`, 'off']),
   ),
+  ...unicornRuleSettings,
   'react/prop-types': 'off',
 };
 const tsRules: Linter.RulesRecord = {
