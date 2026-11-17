@@ -194,12 +194,13 @@ type Language = 'typescript' | 'javascript';
 const hardened = hardenedRules();
 
 function expectedRules(language: Language, typed: boolean): string[] {
-  const rules = {
+  const rules: Linter.RulesRecord = {
     ...hardened.untyped,
     ...(typed ? hardened.typed : {}),
     ...(language === 'typescript' ? jsdocTypeRules.ts : jsdocTypeRules.js),
   };
   return Object.entries(rules)
+    .filter(([, value]) => value !== 'off')
     .map(([name]) => name)
     .toSorted((a, b) => collator.compare(a, b));
 }
