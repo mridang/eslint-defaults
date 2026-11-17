@@ -539,6 +539,7 @@ describe('gitignore', () => {
 const lintProject = (
   files: Record<string, string>,
   targets: string[],
+  field: 'ruleId' | 'message' = 'ruleId',
 ): Record<string, string[]> => {
   const dir = mkdtempSync(path.join(tmpdir(), 'project-'));
   try {
@@ -549,7 +550,7 @@ const lintProject = (
     const script = path.join(dir, 'ask.mjs');
     writeFileSync(
       script,
-      "import { createRequire } from 'node:module';\nconst [, , project, preset, ...files] = process.argv;\nconst { ESLint } = createRequire(project)('eslint');\nconst { default: defaults } = await import(preset);\nconst eslint = new ESLint({ cwd: process.cwd(), overrideConfigFile: true, overrideConfig: defaults.configs.recommended });\nconst results = await eslint.lintFiles(files);\nconsole.log(JSON.stringify(Object.fromEntries(results.map((result) => [result.filePath.slice(process.cwd().length + 1), result.messages.map((message) => message.ruleId)]))));\n",
+      "import { createRequire } from 'node:module';\nconst [, , project, preset, field, ...files] = process.argv;\nconst { ESLint } = createRequire(project)('eslint');\nconst { default: defaults } = await import(preset);\nconst eslint = new ESLint({ cwd: process.cwd(), overrideConfigFile: true, overrideConfig: defaults.configs.recommended });\nconst results = await eslint.lintFiles(files);\nconsole.log(JSON.stringify(Object.fromEntries(results.map((result) => [result.filePath.slice(process.cwd().length + 1), result.messages.map((message) => message[field])]))));\n",
     );
     return JSON.parse(
       execFileSync(
@@ -558,6 +559,7 @@ const lintProject = (
           script,
           path.join(process.cwd(), 'package.json'),
           pathToFileURL(path.join(process.cwd(), 'dist/index.js')).href,
+          field,
           ...targets,
         ],
         { cwd: dir, encoding: 'utf8' },
@@ -633,6 +635,113 @@ describe('config-checks through the preset', () => {
       ['package.json'],
     )['package.json'];
     expect(ids.filter((id) => id.startsWith('config-checks/'))).toEqual([]);
+  });
+});
+
+describe('dotenv through the preset', () => {
+  const secret = 'sk_live_FAKE0123456789abcdef';
+  const typical =
+    '# Server\nHOST=localhost\nPORT=3000\n\n# Secrets, names only\nAPI_TOKEN=\nGREETING="hello world"\nOPTIONAL=\n';
+  const duplicated = 'A=1\nA=2\n';
+  const lintEnv = (
+    name: string,
+    text: string,
+    field: 'ruleId' | 'message' = 'ruleId',
+  ): string[] =>
+    Object.values(lintProject({ [name]: text }, [name], field)).flat();
+
+  it.each([
+    '.env.example',
+    '.env.sample',
+    '.env.template',
+    '.env.production',
+    'apps/web/.env.example',
+    'staging.env',
+  ])('reports a duplicated key in %s', (name) => {
+    expect(lintEnv(name, duplicated)).toContain('dotenv/duplicated-key');
+  });
+
+  it.each([
+    '.env',
+    'apps/web/.env',
+    '.env.local',
+    '.env.development.local',
+    '.env.example.bak',
+  ])('does not lint %s, which can hold secrets', (name) => {
+    expect(lintEnv(name, duplicated).join(',')).not.toContain('dotenv/');
+  });
+
+  it('lints the templates when the .gitignore lists .env*, and still skips the other files', () => {
+    const ids = lintProject(
+      {
+        '.gitignore': '.env*\n',
+        '.env.example': duplicated,
+        '.env.production': duplicated,
+        '.env': duplicated,
+      },
+      ['.env.example', '.env.production', '.env'],
+    );
+
+    expect(ids['.env.example']).toContain('dotenv/duplicated-key');
+    expect(ids['.env.production']).not.toContain('dotenv/duplicated-key');
+    expect(ids['.env']).not.toContain('dotenv/duplicated-key');
+  });
+
+  it('accepts the typical content of a template', () => {
+    expect(lintEnv('.env.example', typical)).toEqual([]);
+  });
+
+  it('puts only key names in its messages, never a value', () => {
+    const messages = lintEnv(
+      '.env.example',
+      `B=${secret}\nA=x y\nA=${secret}\nlower=${secret}\nC="${secret}"\n`,
+      'message',
+    );
+
+    expect(messages.length).toBeGreaterThan(3);
+    expect(messages.filter((message) => message.includes('sk_live'))).toEqual(
+      [],
+    );
+  });
+
+  it('reports a quote a value does not need, and accepts one it does', () => {
+    expect(lintEnv('.env.example', "A='x'\n")).toEqual([
+      'dotenv/quote-character',
+    ]);
+    expect(lintEnv('.env.example', 'A="x y"\n')).toEqual([]);
+  });
+
+  it('works with the declared-variable check, which reads the same template', () => {
+    const ids = lintProject(
+      {
+        'package.json': '{"name":"demo","version":"1.0.0"}',
+        '.env.example': typical,
+        'src/config.js': 'export const port = process.env.PORT;\n',
+        '.env': 'PORT=1\nPORT=2\n',
+      },
+      ['src/config.js', '.env.example'],
+    );
+
+    expect(ids['.env.example']).toEqual([]);
+    expect(ids['src/config.js']).not.toContain(
+      'config-checks/env-declared-in-example',
+    );
+  });
+
+  it('reports a variable missing from a template that the dotenv rules accept', () => {
+    const ids = lintProject(
+      {
+        'package.json': '{"name":"demo","version":"1.0.0"}',
+        '.env.example': typical,
+        'src/config.js': 'export const key = process.env.SECRET_KEY;\n',
+      },
+      ['src/config.js', '.env.example'],
+    );
+
+    expect(ids['.env.example']).toEqual([]);
+    expect(ids['src/config.js']).toContain(
+      'config-checks/env-declared-in-example',
+    );
   });
 });
 

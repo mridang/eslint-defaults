@@ -76,6 +76,7 @@
     "@eslint/markdown": "^7.5.1",
     "@html-eslint/eslint-plugin": "^0.67.0",
     "@html-eslint/parser": "^0.67.0",
+    "@mridang/eslint-plugin-dotenv": "^1.0.0",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
     "@typescript-eslint/types": "^8.73.0",
