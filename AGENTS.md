@@ -17,6 +17,7 @@
 - `test/hardened.test.ts` enforces that every live rule of a plugin is either on or listed with a reason, and holds small lint tests for rules that must agree with each other.
 - Never switch a rule off without writing why. Never loosen a rule to avoid fixing code. Use an option only when the reason is written next to it.
 - Review history of each plugin is in the GitHub issues of this repository (unicorn #107, typescript-eslint #139, e18e #140).
+- `@mridang/eslint-plugin-dotenv` lints the committed environment templates (`.env.example`, `.env.sample`, `.env.template`, `.env.production`, `*.env`) with its `recommended` config, wired next to the YAML and TOML plugins in `src/index.ts`. Real `.env`, `.env.local` and `.env.*.local` files hold secrets and stay in the ignore list in every directory (`**/`), so a run never reads them and CI logs cannot print their values. The three template names (`.env.example`, `.env.sample`, `.env.template`) are re-included after the repository's `.gitignore`, because the usual `.env*` line there would otherwise hide them; `.env.production` and the rest stay as the `.gitignore` says. The plugin's messages carry key names only, never values; `test/hardened.test.ts` asserts it. Do not narrow the ignore list or add a rule whose message prints a value.
 
 ## Changing the rule set
 
