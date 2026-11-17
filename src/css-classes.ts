@@ -1,6 +1,7 @@
+/* eslint-disable functional/no-let, functional/no-loop-statements, functional/immutable-data -- a hand-written stylesheet scanner and directory walker: they keep a cursor and collect names into local sets while reading text one character at a time, and the declarative form would be longer and harder to follow for the same result */
 import fs from 'node:fs/promises';
-import type { Dirent } from 'node:fs';
 import path from 'node:path';
+import type { Dirent } from 'node:fs';
 
 /** Directories that never hold a project's own stylesheets: dependencies, build output and caches. */
 const IGNORED_DIRECTORIES = new Set([
@@ -26,13 +27,13 @@ const IGNORED_DIRECTORIES = new Set([
 const SLASH = 47;
 
 /** Splits text into lines on either line ending. */
-const LINE_BREAK = /\r?\n/;
+const LINE_BREAK = /\r?\n/u;
 
 /** A `.gitignore` line that is a comment, a negation or a glob rather than a plain name. */
-const COMMENT_OR_GLOB = /(?:^[#!])|[*?[\]/]/;
+const COMMENT_OR_GLOB = /(?:^[#!])|[*?[\]/]/u;
 
 /** The name of a Tailwind 4 `@utility` at-rule. */
-const UTILITY_AT_RULE = /^@utility\s+([^\s]+)/i;
+const UTILITY_AT_RULE = /^@utility\s+([^\s]+)/iu;
 
 /** Compares text the way `localeCompare` does, building the collator once. */
 const COLLATOR = new Intl.Collator();
@@ -41,8 +42,12 @@ const COLLATOR = new Intl.Collator();
 function trimSlashes(text: string): string {
   let start = 0;
   let end = text.length;
-  while (start < end && text.codePointAt(start) === SLASH) start += 1;
-  while (end > start && text.codePointAt(end - 1) === SLASH) end -= 1;
+  while (start < end && text.codePointAt(start) === SLASH) {
+    start += 1;
+  }
+  while (end > start && text.codePointAt(end - 1) === SLASH) {
+    end -= 1;
+  }
   return text.slice(start, end);
 }
 
@@ -53,7 +58,9 @@ function removeBracketGroups(text: string): string {
   for (;;) {
     const open = text.indexOf('[', position);
     const close = open === -1 ? -1 : text.indexOf(']', open + 1);
-    if (close === -1) return result + text.slice(position);
+    if (close === -1) {
+      return result + text.slice(position);
+    }
     result += text.slice(position, open);
     position = close + 1;
   }
@@ -116,15 +123,21 @@ const NOISE = new RegExp(
     String.raw`url\((?:\\[\s\S]|[^)\\])*\)`,
     String.raw`\\[\s\S]`,
   ].join('|'),
-  'gi',
+  'giu',
 );
 
 /** The stylesheet with comments, strings and `url()` contents emptied out, keeping escapes and layout. */
 function stripNoise(css: string): string {
   return css.replaceAll(NOISE, (match) => {
-    if (match.startsWith('/*')) return ' ';
-    if (match.startsWith('\\')) return match;
-    if (match.startsWith('"') || match.startsWith("'")) return '""';
+    if (match.startsWith('/*')) {
+      return ' ';
+    }
+    if (match.startsWith('\\')) {
+      return match;
+    }
+    if (match.startsWith('"') || match.startsWith("'")) {
+      return '""';
+    }
     return 'url()';
   });
 }
@@ -133,15 +146,17 @@ function stripNoise(css: string): string {
 const CLASS_ESCAPE = String.raw`\\(?:[0-9a-fA-F]{1,6}\s?|[^\n])`;
 const CLASS_SELECTOR = new RegExp(
   String.raw`\.(-{0,2}(?:[_a-zA-Z\u0080-￿]|${CLASS_ESCAPE})(?:[\w\u0080-￿-]|${CLASS_ESCAPE})*)`,
-  'g',
+  'gu',
 );
 
 /** Turn the escapes in a CSS identifier into the characters they stand for. */
 function unescapeIdentifier(identifier: string): string {
   return identifier.replaceAll(
-    /\\(?:([0-9a-fA-F]{1,6})\s?|([^\n]))/g,
+    /\\(?:([0-9a-fA-F]{1,6})\s?|([^\n]))/gu,
     (_match, hex: string | undefined, char: string | undefined) => {
-      if (char !== undefined) return char;
+      if (char !== undefined) {
+        return char;
+      }
       const code = Number.parseInt(hex ?? '', 16);
       return code > 0 && code <= 0x10_ff_ff ? String.fromCodePoint(code) : '�';
     },
@@ -149,7 +164,7 @@ function unescapeIdentifier(identifier: string): string {
 }
 
 /** At-rules whose prelude holds selectors (the rest, like `@media (min-width: 40em)`, do not). */
-const SELECTOR_AT_RULES = /^@(?:scope|custom-variant|custom-selector|nest)\b/i;
+const SELECTOR_AT_RULES = /^@(?:scope|custom-variant|custom-selector|nest)\b/iu;
 
 /** The trimmed text before each `{`, back to the previous `{`, `}` or `;`. */
 function* preludes(css: string): Generator<string> {
@@ -196,11 +211,11 @@ export function extractClassNames(css: string): Set<string> {
 }
 
 /** Characters that make the Tailwind plugin read a `whitelist` entry as a regular expression. */
-const REGEX_METACHARACTERS = /[\\[\]{}()*+?^$|]/;
+const REGEX_METACHARACTERS = /[\\[\]{}()*+?^$|]/u;
 
 /** Escape the characters that mean something in a regular expression. */
 function escapeRegExp(text: string): string {
-  return text.replaceAll(/[\\[\]{}()*+?^$|.]/g, String.raw`\$&`);
+  return text.replaceAll(/[\\[\]{}()*+?^$|.]/gu, String.raw`\$&`);
 }
 
 /**
@@ -237,3 +252,4 @@ export async function projectCssWhitelist(root: string): Promise<string[]> {
   }
   return toWhitelist(names);
 }
+/* eslint-enable functional/no-let, functional/no-loop-statements, functional/immutable-data -- end of the scanner and the directory walker */

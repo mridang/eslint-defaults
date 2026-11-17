@@ -1,12 +1,12 @@
-import type { ESLint, Linter } from 'eslint';
-import tailwindV4 from 'eslint-plugin-tailwindcss';
-import tailwindV3 from 'eslint-plugin-tailwindcss-v3';
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import tailwindV3 from 'eslint-plugin-tailwindcss-v3';
+import tailwindV4 from 'eslint-plugin-tailwindcss';
 
 import { projectCssWhitelist } from './css-classes.js';
 import { normalizeConfig } from './utilities.js';
+import type { ESLint, Linter } from 'eslint';
 
 /** What the Tailwind lint plugin contributes to a project: nothing, or a plugin with its rules and settings. */
 interface TailwindSupport {
@@ -36,7 +36,7 @@ const CSS_ENTRY_CANDIDATES = [
 ] as const;
 
 /** An `@import` of Tailwind 4, including sub-paths. */
-const TAILWIND_IMPORT = /@import\s+['"]tailwindcss(?:\/[^'"]*)?['"]/;
+const TAILWIND_IMPORT = /@import\s+['"]tailwindcss(?:\/[^'"]*)?['"]/u;
 
 /** Whether a CSS file pulls in Tailwind 4 (`@import "tailwindcss"`, including sub-paths). */
 async function importsTailwind(file: string): Promise<boolean> {
@@ -55,9 +55,12 @@ async function importsTailwind(file: string): Promise<boolean> {
 export async function findTailwindCssEntry(
   cwd: string,
 ): Promise<string | undefined> {
+  // eslint-disable-next-line functional/no-loop-statements -- the candidates are tried in order and the first match wins, with an await between them; a map would check them all at once
   for (const candidate of CSS_ENTRY_CANDIDATES) {
     const file = path.join(cwd, candidate);
-    if (await importsTailwind(file)) return file;
+    if (await importsTailwind(file)) {
+      return file;
+    }
   }
   return undefined;
 }
@@ -132,14 +135,17 @@ async function withProjectClasses(
   cwd: string,
 ): Promise<Readonly<Linter.RulesRecord>> {
   const setting = rules[NO_CUSTOM_CLASSNAME] as Linter.RuleEntry | undefined;
-  if (setting === undefined) return rules;
+  if (setting === undefined) {
+    return rules;
+  }
   const whitelist = await projectCssWhitelist(cwd);
-  if (whitelist.length === 0) return rules;
+  if (whitelist.length === 0) {
+    return rules;
+  }
   const [severity, options] = Array.isArray(setting)
     ? [setting[0], (setting[1] ?? {}) as { whitelist?: string[] }]
     : [setting, {}];
-  const merged = new Set(options.whitelist);
-  for (const entry of whitelist) merged.add(entry);
+  const merged = new Set(options.whitelist).union(new Set(whitelist));
   return {
     ...rules,
     [NO_CUSTOM_CLASSNAME]: [

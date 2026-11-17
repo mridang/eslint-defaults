@@ -4,9 +4,8 @@ import {
   buildReport,
   buildRuleList,
   sampleHits,
-  type Hit,
-  type ReportData,
 } from '../../etc/rule-impact.js';
+import type { Hit, ReportData } from '../../etc/rule-impact.js';
 
 const hit = (repo: string, line = 1): Hit => ({
   repo,

@@ -15,7 +15,9 @@ function isConfig(value: unknown): value is Linter.Config {
  * values to avoid runtime errors when spreading third-party configs.
  */
 export function normalizeConfigArray(value: unknown): Linter.Config[] {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
   if (Array.isArray(value)) {
     return value.filter(isConfig);
   }

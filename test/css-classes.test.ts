@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { describe, expect, it } from '@jest/globals';
 
 import {
   extractClassNames,
@@ -149,16 +149,20 @@ describe('toWhitelist', () => {
 
   it('escapes and anchors names that would otherwise read as patterns', () => {
     const [entry] = toWhitelist(['w-[10px]']);
+    const pattern = new RegExp(entry ?? '', 'u');
     expect(entry).toBe(String.raw`^w-\[10px\]$`);
-    expect(new RegExp(entry ?? '').test('w-[10px]')).toBe(true);
-    expect(new RegExp(entry ?? '').test('w-1x')).toBe(false);
+    expect(['w-[10px]', 'w-1x'].filter((name) => pattern.test(name))).toEqual([
+      'w-[10px]',
+    ]);
   });
 
   it('turns a functional utility into an anchored prefix pattern', () => {
     const [entry] = toWhitelist(['tab-*']);
+    const pattern = new RegExp(entry ?? '', 'u');
     expect(entry).toBe('^tab-.+$');
-    expect(new RegExp(entry ?? '').test('tab-4')).toBe(true);
-    expect(new RegExp(entry ?? '').test('xtab-4')).toBe(false);
+    expect(['tab-4', 'xtab-4'].filter((name) => pattern.test(name))).toEqual([
+      'tab-4',
+    ]);
   });
 
   it('drops duplicates', () => {

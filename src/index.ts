@@ -1,4 +1,6 @@
-import type { ESLint, Linter } from 'eslint';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { fixupPluginRules } from '@eslint/compat';
 import typescriptParser from '@typescript-eslint/parser';
 import prettierPlugin from 'eslint-plugin-prettier';
@@ -27,19 +29,26 @@ import packageJsonPlugin from 'eslint-plugin-package-json';
 import vuePlugin from 'eslint-plugin-vue';
 import sveltePlugin from 'eslint-plugin-svelte';
 import astroPlugin from 'eslint-plugin-astro';
+import { createRemarkProcessor, flat, flatCodeBlocks } from 'eslint-plugin-mdx';
+import gitignore from 'eslint-config-flat-gitignore';
+import configChecksPlugin from './plugins/config-checks/index.js';
+import { rules } from './plugins/intl/index.js';
 import {
-  createRemarkProcessor,
-  flat as mdxFlat,
-  flatCodeBlocks as mdxFlatCodeBlocks,
-} from 'eslint-plugin-mdx';
-import path from 'node:path';
-import fs from 'node:fs/promises';
+  coreJavaScriptRuleSettings,
+  coreRuleSettings,
+  importRuleSettings,
+  reactRuleSettings,
+} from './core-rules.js';
 import { tailwindSupport } from './tailwind.js';
 import {
+  bannedApiRuleSettings,
+  functionalRuleSettings,
+  functionalTypedRuleSettings,
   hardenedPlugins,
   hardenedRules,
   hardenedSettings,
   jsdocTypeRules,
+  testOnlyGlobals,
   typescriptRuleSettings,
   typescriptTypedRules,
   unicornExclusions,
@@ -54,7 +63,7 @@ import {
   blockGlobs,
 } from './languages.js';
 import { normalizeConfig, normalizeConfigArray } from './utilities.js';
-import { createRequire } from 'node:module';
+import type { ESLint, Linter } from 'eslint';
 
 const prettierRules = (normalizeConfig(prettierPlugin.configs?.recommended)
   .rules ?? {}) as Linter.RulesRecord;
@@ -68,21 +77,25 @@ const markdownRecommended = normalizeConfigArray(
 const markdownProcessor = normalizeConfigArray(
   markdownPlugin.configs?.processor,
 );
-const htmlRecommended =
+/** The HTML plugin's config for HTML files, with our parser on its last entry. */
+const htmlRecommended: Linter.Config[] = (
   htmlRecommendedArray.length > 0
     ? htmlRecommendedArray.map((cfg) => ({ ...cfg }))
-    : [{} satisfies Linter.Config];
+    : [{} satisfies Linter.Config]
+).map((cfg, index, all) =>
+  index === all.length - 1
+    ? {
+        ...cfg,
+        files: ['**/*.html', '**/*.htm', '**/*.html.json5'],
+        languageOptions: { ...cfg.languageOptions, parser: htmlParser },
+      }
+    : cfg,
+);
 const loadJson = createRequire(import.meta.url);
 const requirePlugin = loadJson;
 const packageJson = loadJson('../package.json') as {
   name: string;
   version: string;
-};
-const [htmlConfig] = htmlRecommended.slice(-1);
-htmlConfig.files = ['**/*.html', '**/*.htm', '**/*.html.json5'];
-htmlConfig.languageOptions = {
-  ...htmlConfig.languageOptions,
-  parser: htmlParser,
 };
 const jsonRecommended = normalizeConfig(
   jsonLanguagePlugin.configs?.recommended,
@@ -129,6 +142,18 @@ const tailwind = await tailwindSupport();
 const tailwindSettings = tailwind.settings;
 /** Matches every TypeScript and JavaScript file. */
 const CODE_FILES = `**/*.{${[...TYPESCRIPT_EXTENSIONS, ...JAVASCRIPT_EXTENSIONS].join(',')}}`;
+/** The locations of test files, as plain globs. */
+const TEST_LOCATIONS = [
+  '**/test/**',
+  '**/tests/**',
+  '**/__tests__/**',
+  '**/e2e/**',
+  '**/*.test.*',
+  '**/*.spec.*',
+  '**/*.cy.*',
+];
+/** Matches the code files at the test locations, and no data file that lives beside them. */
+const TEST_FILES = TEST_LOCATIONS.map((location) => [location, CODE_FILES]);
 const hardened = hardenedRules();
 const reactPlugins = {
   ...hardenedPlugins,
@@ -157,6 +182,7 @@ const reactRuleBase: Linter.RulesRecord = {
   ...reactHooksPlugin.configs.recommended.rules,
   ...jsxA11yPlugin.configs.recommended.rules,
   ...importPlugin.configs.recommended.rules,
+  ...bannedApiRuleSettings,
   ...unicornPlugin.configs.all.rules,
   ...Object.fromEntries(
     Object.keys(unicornExclusions).map((name) => [`unicorn/${name}`, 'off']),
@@ -173,14 +199,24 @@ const tsRules: Linter.RulesRecord = {
   'no-undef': 'off',
   ...hardened.untyped,
   ...hardened.typed,
+  ...functionalRuleSettings,
+  ...functionalTypedRuleSettings,
   ...jsdocTypeRules.ts,
   ...prettierRules,
+  ...coreRuleSettings,
+  ...importRuleSettings,
+  ...reactRuleSettings,
 };
 const jsRules: Linter.RulesRecord = {
   ...reactRuleBase,
   ...hardened.untyped,
+  ...functionalRuleSettings,
   ...jsdocTypeRules.js,
   ...prettierRules,
+  ...coreRuleSettings,
+  ...importRuleSettings,
+  ...reactRuleSettings,
+  ...coreJavaScriptRuleSettings,
 };
 /** Switches off the rules that need type information. */
 const untypedOnly: Linter.RulesRecord = Object.fromEntries(
@@ -249,6 +285,11 @@ const jsonConfigs: Linter.Config[] = [
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- the plugin ships no types, so its value is any */
 const recommended: Linter.Config[] = [
+  // Everything the repository's own .gitignore lists is ignored too, on top of the list below.
+  // It looks for the .gitignore in the directory ESLint runs from and above it, so a run from a
+  // subdirectory of a monorepo finds the root one and its patterns are made relative to that
+  // directory. strict: false keeps a directory without a .gitignore from failing.
+  gitignore({ strict: false }),
   {
     ignores: [
       'build/**',
@@ -402,15 +443,15 @@ const recommended: Linter.Config[] = [
   {
     // MDX: the text and its JSX are linted by the MDX plugin, and the code
     // blocks inside are virtual files that follow the rules of their language.
-    ...mdxFlat,
+    ...flat,
     files: ['**/*.mdx'],
-    plugins: { ...mdxFlat.plugins, react: reactPlugins.react },
+    plugins: { ...flat.plugins, react: reactPlugins.react },
     processor: createRemarkProcessor({
       lintCodeBlocks: true,
       languageMapper: {},
     }),
   },
-  { ...mdxFlatCodeBlocks, files: ['**/*.mdx/**'] },
+  { ...flatCodeBlocks, files: ['**/*.mdx/**'] },
   {
     // Next.js route handlers and Astro or pages-router endpoints must be named GET, POST and so on.
     files: [
@@ -424,16 +465,7 @@ const recommended: Linter.Config[] = [
     // React components are PascalCase, and tests name fixtures and components freely.
     // Only code files: a list that ends in a code glob keeps the rule away from
     // the data files that live in the same directories.
-    files: [
-      ...filesGlobs(['tsx', 'jsx']),
-      ...[
-        '**/test/**',
-        '**/tests/**',
-        '**/e2e/**',
-        '**/*.test.*',
-        '**/*.spec.*',
-      ].map((location) => [location, CODE_FILES]),
-    ],
+    files: [...filesGlobs(['tsx', 'jsx']), ...TEST_FILES],
     rules: {
       'sonarjs/function-name': [
         'error',
@@ -452,8 +484,6 @@ const recommended: Linter.Config[] = [
         'error',
         { cases: { kebabCase: true }, ignore: [String.raw`^\[.+\]`] },
       ],
-      // Conflicts with Prettier.
-      'no-unexpected-multiline': 'off',
       // One unused-variable rule, not two: the unused-imports one also removes
       // unused imports, and names that start with an underscore are on purpose.
       '@typescript-eslint/no-unused-vars': 'off',
@@ -488,30 +518,54 @@ const recommended: Linter.Config[] = [
   {
     // Testing Library rules only make sense in tests: elsewhere they misfire on
     // names like getByIds or debug.
-    files: [
-      '**/test/**',
-      '**/tests/**',
-      '**/e2e/**',
-      '**/*.test.*',
-      '**/*.spec.*',
-    ].map((location) => [location, CODE_FILES]),
+    files: TEST_FILES,
     rules: testingLibraryPlugin.configs.react.rules,
   },
   {
     // Tests use local servers, plain http URLs and synchronous fixtures freely.
-    files: [
-      '**/test/**',
-      '**/tests/**',
-      '**/e2e/**',
-      '**/*.test.*',
-      '**/*.spec.*',
-    ].map((location) => [location, CODE_FILES]),
+    files: TEST_FILES,
     rules: {
       'sonarjs/no-hardcoded-ip': 'off',
       'sonarjs/no-clear-text-protocols': 'off',
       'unicorn/prefer-https': 'off',
       'n/no-sync': 'off',
     },
+  },
+  {
+    // Tests mutate fixtures, count in loops and build arrays step by step; the
+    // immutability rules are for the code that ships.
+    files: TEST_FILES,
+    rules: {
+      'functional/no-let': 'off',
+      'functional/no-loop-statements': 'off',
+      'functional/immutable-data': 'off',
+    },
+  },
+  {
+    // A describe, it or test in a file the test runner does not pick up never
+    // runs, so the tests silently pass by not existing. The globs are the test
+    // locations above, and Markdown code blocks are examples, not source.
+    files: [CODE_FILES],
+    ignores: [...TEST_LOCATIONS, '**/*.md/**', '**/*.mdx/**'],
+    rules: { 'no-restricted-globals': ['error', ...testOnlyGlobals] },
+  },
+  {
+    // Configuration read in code must be parsed, and declared where people look.
+    files: [CODE_FILES],
+    ignores: TEST_LOCATIONS,
+    plugins: { 'config-checks': configChecksPlugin },
+    rules: {
+      'config-checks/mixed-config-types': 'error',
+      'config-checks/env-declared-in-example': 'error',
+    },
+  },
+  {
+    // Hand-written plurals, relative times and truncation belong to Intl. Only
+    // the source tree: tests assert Intl output and would be false positives.
+    files: ['src/**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+    ignores: TEST_LOCATIONS,
+    plugins: { intl: { rules } },
+    rules: { 'intl/prefer-intl': 'error' },
   },
   ...jsonConfigs,
   ...ymlPlugin.configs['flat/standard'],
@@ -563,8 +617,14 @@ const recommended: Linter.Config[] = [
   {
     ...packageJsonPlugin.configs.recommended,
     language: '@/js',
+    plugins: {
+      ...packageJsonPlugin.configs.recommended.plugins,
+      'config-checks': configChecksPlugin,
+    },
     rules: {
       ...packageJsonPlugin.configs.recommended.rules,
+      'config-checks/nvmrc-matches-engines': 'error',
+      'config-checks/types-in-dev-dependencies': 'error',
       'no-restricted-syntax': [
         'error',
         {
