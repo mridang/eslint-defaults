@@ -95,14 +95,18 @@ export function createTypeEnvironment(
   if (cached !== undefined) {
     return cached;
   }
-  const interfaces = Map.groupBy(
-    program.body
-      .map((statement) => declaredStatement(statement))
-      .filter(
-        (declaration): declaration is TSESTree.TSInterfaceDeclaration =>
-          declaration?.type === AST_NODE_TYPES.TSInterfaceDeclaration,
-      ),
-    (declaration) => declaration.id.name,
+  // Map.groupBy needs Node 21; the preset supports Node 20.
+  const declarations = program.body
+    .map((statement) => declaredStatement(statement))
+    .filter(
+      (declaration): declaration is TSESTree.TSInterfaceDeclaration =>
+        declaration?.type === AST_NODE_TYPES.TSInterfaceDeclaration,
+    );
+  const interfaces = new Map(
+    declarations.map((declaration) => [
+      declaration.id.name,
+      declarations.filter((other) => other.id.name === declaration.id.name),
+    ]),
   );
 
   const environment = {

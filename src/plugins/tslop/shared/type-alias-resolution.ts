@@ -104,7 +104,13 @@ export function createTypeAliasEnvironment(
     aliases: bindings.flatMap((binding) =>
       binding.alias === null ? [] : [binding.alias],
     ),
-    bindingsByName: Map.groupBy(bindings, (binding) => binding.name),
+    // Map.groupBy needs Node 21; the preset supports Node 20.
+    bindingsByName: new Map(
+      bindings.map((binding) => [
+        binding.name,
+        bindings.filter((other) => other.name === binding.name),
+      ]),
+    ),
     visitorKeys,
   };
   environmentsByProgram.set(program, environment);

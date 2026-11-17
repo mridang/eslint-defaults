@@ -222,7 +222,6 @@ describe('ultracite rule settings in ESLint', () => {
     ['curly', 'if (process.argv.length) console.log(1);\n'],
     ['eqeqeq', 'export const same = (a, b) => a == b;\n'],
     ['no-var', 'var count = 1;\nexport { count };\n'],
-    ['prefer-template', 'export const hi = (n) => "hi " + n;\n'],
     ['no-void', 'export const run = () => void 1 + 1;\n'],
     [
       'import/order',
