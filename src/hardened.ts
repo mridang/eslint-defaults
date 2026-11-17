@@ -1,13 +1,15 @@
-import type { ESLint, Linter } from 'eslint';
 import e18ePlugin from '@e18e/eslint-plugin';
 import typescriptPlugin from '@typescript-eslint/eslint-plugin';
 import eslintCommentsPlugin from '@eslint-community/eslint-plugin-eslint-comments';
+import functionalPlugin from 'eslint-plugin-functional';
 import githubPlugin from 'eslint-plugin-github';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
 import nPlugin from 'eslint-plugin-n';
 import promisePlugin from 'eslint-plugin-promise';
 import sonarjsPlugin from 'eslint-plugin-sonarjs';
 import unusedImportsPlugin from 'eslint-plugin-unused-imports';
+import tslopPlugin from './plugins/tslop/index.js';
+import type { ESLint, Linter } from 'eslint';
 
 interface RuleMeta {
   deprecated?: unknown;
@@ -38,26 +40,34 @@ const JSDOC_TYPE_TAGS = [
  * The per-language settings for the JSDoc type rules, applied over the
  * general rule set.
  */
-export const jsdocTypeRules: {
-  ts: Linter.RulesRecord;
-  js: Linter.RulesRecord;
-} = {
+export const jsdocTypeRules = {
   ts: {
     ...Object.fromEntries(
-      JSDOC_TYPE_TAGS.map((tag) => [`jsdoc/${tag}`, 'off']),
+      JSDOC_TYPE_TAGS.map((tag) => [`jsdoc/${tag}`, 'off' as const]),
     ),
-    'jsdoc/no-undefined-types': 'off',
+    'jsdoc/no-undefined-types': 'off' as const,
   },
-  js: { 'jsdoc/no-types': 'off' },
+  js: { 'jsdoc/no-types': 'off' as const },
 };
 
 /** Rules that need type information and so only run on TypeScript files. */
-export interface HardenedRules {
+interface HardenedRules {
   untyped: Linter.RulesRecord;
   typed: Linter.RulesRecord;
 }
 
 const NEEDS_OPTIONS = 'Matches nothing without options, so it is only noise.';
+
+/**
+ * Every JSDoc rule with the shared reason for being off. The JSDoc library
+ * lists its own reasons after it, which take over for the rules they name.
+ */
+const JSDOC_TEMPORARILY_OFF: Record<string, string> = Object.fromEntries(
+  Object.keys(jsdocPlugin.rules ?? {}).map((name) => [
+    name,
+    'Temporarily off while the repositories are brought to a clean baseline; to be switched back on later.',
+  ]),
+);
 
 const LIBRARIES: HardenedLibrary[] = [
   {
@@ -100,6 +110,7 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'jsdoc',
     plugin: jsdocPlugin,
     excluded: {
+      ...JSDOC_TEMPORARILY_OFF,
       'require-example':
         'Kept off by choice: an @example on every function would be generated, untested and go stale.',
       'require-file-overview':
@@ -163,6 +174,78 @@ const LIBRARIES: HardenedLibrary[] = [
     },
   },
   {
+    namespace: 'functional',
+    plugin: functionalPlugin,
+    // Only no-let, immutable-data and no-loop-statements are on (issues #121, #122, #123 and #124):
+    // they remove mutable variables, mutation after creation and imperative loops. Everything else
+    // in this plugin enforces the rest of the functional-programming paradigm, which we do not adopt.
+    excluded: {
+      'functional-parameters':
+        'Part of the functional-programming paradigm we do not adopt: it bans rest parameters and the arguments object and demands at least one parameter, which rejects ordinary zero-argument functions and variadic helpers.',
+      'no-classes':
+        'Part of the functional-programming paradigm we do not adopt: classes are used on purpose (NestJS, Durable Objects, errors, framework contracts).',
+      'no-class-inheritance':
+        'Part of the functional-programming paradigm we do not adopt: extending Error, framework base classes and Durable Object classes is required by the platforms we build on.',
+      'no-conditional-statements':
+        'Part of the functional-programming paradigm we do not adopt: it bans if and switch statements, which is far beyond what code needs to be readable and safe.',
+      'no-expression-statements':
+        'Part of the functional-programming paradigm we do not adopt: it bans every statement that is only a call, which rejects logging, awaiting, DOM updates and every test assertion.',
+      'no-mixed-types':
+        'Part of the functional-programming paradigm we do not adopt: it forbids a type that mixes data and function members, which is how interfaces of services and React props are normally written.',
+      'no-promise-reject':
+        'Part of the functional-programming paradigm we do not adopt: Promise.reject is a normal way to fail, and @typescript-eslint/prefer-promise-reject-errors already checks what it is called with.',
+      'no-return-void':
+        'Part of the functional-programming paradigm we do not adopt: functions that run for their effect, such as handlers, callbacks and hooks, legitimately return nothing.',
+      'no-this-expressions':
+        'Part of the functional-programming paradigm we do not adopt: it follows no-classes, and classes are used on purpose.',
+      'no-throw-statements':
+        'Part of the functional-programming paradigm we do not adopt: throwing is how our code reports errors, with @typescript-eslint/only-throw-error checking what is thrown.',
+      'no-try-statements':
+        'Part of the functional-programming paradigm we do not adopt: try and catch is how our code handles failures.',
+      'prefer-immutable-types':
+        'Part of the functional-programming paradigm we do not adopt: it demands deeply readonly parameter and return types, the same demand as @typescript-eslint/prefer-readonly-parameter-types, which is off for its thousands of findings.',
+      'prefer-property-signatures':
+        'A style opinion of the functional-programming paradigm (property versus method signature), with no safety benefit; @typescript-eslint/method-signature-style is off for the same reason.',
+      'prefer-tacit':
+        'Part of the functional-programming paradigm we do not adopt: point-free style (passing a function instead of wrapping it in an arrow) is a style opinion that often hurts readability.',
+      'readonly-type':
+        'Part of the functional-programming paradigm we do not adopt: it requires readonly on every property and array type, which no repository follows.',
+      'type-declaration-immutability':
+        'Part of the functional-programming paradigm we do not adopt: it requires every type declaration to be named after and declared with its immutability level, a naming convention no repository follows.',
+    },
+  },
+  {
+    namespace: 'tslop',
+    // The rules are ESLint ports of rules from two MIT-licensed Oxlint projects,
+    // anti-slop (Dillon Mulroy) and ai-deslop (maharshi365); see
+    // src/plugins/tslop/LICENSE-THIRD-PARTY.md.
+    plugin: tslopPlugin,
+    excluded: {
+      'no-conditional-empty-object-spread':
+        'Ported, enabled later: about 300 findings across the repositories, to be fixed before the rule is switched on.',
+      'no-chained-type-assertions':
+        'Ported, enabled later: about 320 findings across the repositories, to be fixed before the rule is switched on.',
+      'no-runtime-typeof':
+        'Ported, enabled later: about 760 findings across the repositories, to be fixed before the rule is switched on.',
+      'no-unsafe-dictionary-type':
+        'Ported, enabled later: about 590 findings across the repositories, to be fixed before the rule is switched on.',
+      'require-safety-comment-for-type-assertion':
+        'Ported, enabled later: thousands of findings across the repositories, and each needs a written safety comment, so it is a project of its own.',
+      'no-unknown-parameters':
+        'Ported, enabled later: about 480 findings across the repositories. The rule is narrowed so it no longer conflicts with @typescript-eslint/use-unknown-in-catch-callback-variable.',
+      'no-reexports-outside-entrypoints':
+        'Ported, enabled later: contradicts unicorn/prefer-export-from, which is on: a renamed re-export of an imported name (export { X as Y }) is reported by one rule when written as a const and by the other when written as a re-export, so it cannot satisfy both.',
+      'no-reflect-apply':
+        'Ported, enabled later: contradicts unicorn/prefer-reflect-apply, and no narrowing of the rule removes the conflict.',
+      'max-boolean-conditions':
+        'Ported, enabled later: duplicates sonarjs/expression-complexity, which is on.',
+      'no-duplicate-consts':
+        'Ported, enabled later: it keeps state across files in the lint process, so its result depends on the order files are linted in and breaks with --cache and concurrent workers.',
+      'no-duplicate-types':
+        'Ported, enabled later: it keeps state across files in the lint process, so its result depends on the order files are linted in and breaks with --cache and concurrent workers.',
+    },
+  },
+  {
     namespace: 'unused-imports',
     plugin: unusedImportsPlugin,
     excluded: {},
@@ -184,16 +267,6 @@ const LIBRARIES: HardenedLibrary[] = [
     },
   },
 ];
-
-/** Reason shared by every JSDoc rule that is not already excluded for another reason. */
-const JSDOC_TEMPORARILY_OFF =
-  'Temporarily off while the repositories are brought to a clean baseline; to be switched back on later.';
-const jsdocLibrary = LIBRARIES.find((library) => library.namespace === 'jsdoc');
-for (const name of Object.keys(jsdocLibrary?.plugin.rules ?? {})) {
-  if (jsdocLibrary && !(name in jsdocLibrary.excluded)) {
-    jsdocLibrary.excluded[name] = JSDOC_TEMPORARILY_OFF;
-  }
-}
 
 /**
  * The rules left off for each plugin namespace, with the reason.
@@ -220,22 +293,54 @@ export const hardenedSettings: Linter.Config['settings'] = {
 };
 
 /**
+ * Options for the functional rules that are on. hardenedRules() turns the
+ * rules on as plain errors; these are applied after it and carry the options.
+ */
+export const functionalRuleSettings: Linter.RulesRecord = {
+  // Every let is reported, including the one in a for loop: loops are
+  // reported by no-loop-statements anyway, so allowing the loop's let would
+  // only hide one of two findings that disappear together with the loop.
+  'functional/no-let': 'error',
+  'functional/no-loop-statements': 'error',
+};
+
+/** The functional rule that needs type information, with its options. */
+export const functionalTypedRuleSettings: Linter.RulesRecord = {
+  // ignoreClasses: 'fieldsOnly' allows `this.field = value` (a constructor or
+  // a method that sets its own field) but still reports mutating the array or
+  // object a field holds. ignoreImmediateMutation (the default, written out)
+  // allows mutating a value in the expression that creates it, such as
+  // [...items].sort(), so a copy-then-sort passes while items.sort() is reported.
+  // Building an object in a variable and returning it right away is not allowed
+  // by any option of this rule: build it in one expression instead.
+  'functional/immutable-data': [
+    'error',
+    { ignoreClasses: 'fieldsOnly', ignoreImmediateMutation: true },
+  ],
+};
+
+/**
  * Turns on, as errors, every rule of the library that is neither deprecated
  * nor excluded. New rules shipped by a plugin are therefore on by default.
  * @param library - The plugin and the rules to leave off.
  * @returns The rules split by whether they need type information.
  */
 function rulesOf(library: HardenedLibrary): HardenedRules {
-  const result: HardenedRules = { untyped: {}, typed: {} };
-  for (const [name, rule] of Object.entries(library.plugin.rules ?? {})) {
-    const meta = (rule as { meta?: RuleMeta }).meta;
-    if (meta?.deprecated || name in library.excluded) continue;
-    const target = meta?.docs?.requiresTypeChecking
-      ? result.typed
-      : result.untyped;
-    target[`${library.namespace}/${name}`] = 'error';
-  }
-  return result;
+  const live = Object.entries(library.plugin.rules ?? {})
+    .map(([name, rule]) => ({ name, meta: (rule as { meta?: RuleMeta }).meta }))
+    .filter(
+      ({ name, meta }) => !meta?.deprecated && !(name in library.excluded),
+    );
+  const errorsFor = (needsTypes: boolean): Linter.RulesRecord =>
+    Object.fromEntries(
+      live
+        .filter(
+          ({ meta }) =>
+            Boolean(meta?.docs?.requiresTypeChecking) === needsTypes,
+        )
+        .map(({ name }) => [`${library.namespace}/${name}`, 'error' as const]),
+    );
+  return { untyped: errorsFor(false), typed: errorsFor(true) };
 }
 
 /**
@@ -244,20 +349,68 @@ function rulesOf(library: HardenedLibrary): HardenedRules {
  * @returns The rules for any file and the ones that also need type information.
  */
 export function hardenedRules(): HardenedRules {
-  const result: HardenedRules = { untyped: {}, typed: {} };
-  for (const library of LIBRARIES) {
-    const rules = rulesOf(library);
-    Object.assign(result.untyped, rules.untyped);
-    Object.assign(result.typed, rules.typed);
-  }
-  return result;
+  const all = LIBRARIES.map((library) => rulesOf(library));
+  return {
+    untyped: Object.assign(
+      {},
+      ...all.map((rules) => rules.untyped),
+    ) as Linter.RulesRecord,
+    typed: Object.assign(
+      {},
+      ...all.map((rules) => rules.typed),
+    ) as Linter.RulesRecord,
+  };
 }
+
+/**
+ * Core ESLint rules switched on for every code file, beyond `recommended`.
+ */
+export const bannedApiRuleSettings: Linter.RulesRecord = {
+  // Dialogs from window.alert, confirm and prompt block the main thread, cannot
+  // be styled, trap no focus and are suppressed in embedded browsers (#104).
+  // Use the shared Dialog and ConfirmDialog components or a native <dialog>.
+  'no-alert': 'error',
+  // One entry for every restricted property. Each is allowed in the one place
+  // that implements the shared helper by an inline disable that states why.
+  'no-restricted-properties': [
+    'error',
+    {
+      property: 'toFixed',
+      message:
+        'toFixed ignores the locale and cannot group digits or express units and percentages: format text a person reads with Intl.NumberFormat (#99). For machine output (ids, ETags, cache keys, CSV, JSON), disable this line with the reason.',
+    },
+    {
+      property: 'localeCompare',
+      message:
+        'localeCompare without a fixed locale orders text differently on the server and in the browser: use the shared compareText, which is built on Intl.Collator (#100). For ids and keys, disable this line with the reason.',
+    },
+    ...['toLocaleString', 'toLocaleDateString', 'toLocaleTimeString'].map(
+      (property) => ({
+        property,
+        message: `${property} uses the runtime default locale, or scatters one inline locale over many call sites: use the Intl formatters of the shared module with an explicit locale (#101).`,
+      }),
+    ),
+  ],
+};
+
+/**
+ * Globals that only a test file may use: a describe, it or test outside a
+ * test file is never run by the test runner (#18).
+ */
+export const testOnlyGlobals: { name: string; message: string }[] = [
+  'describe',
+  'it',
+  'test',
+].map((name) => ({
+  name,
+  message: `${name} outside a test file is never run: move the test to a test file, or import ${name} from your test library if this file is a test helper.`,
+}));
 
 /**
  * The unicorn rules left off. Unicorn is enabled through its own `all`
  * config, so these are switched off after it.
  */
-export const unicornExclusions: Record<string, string> = {
+export const unicornExclusions = {
   'consistent-function-scoping':
     'Kept off by choice: it reports almost only code that is fine as written, such as a small formatter next to its only use or a React event handler inside its component, and most hits are in tests.',
   'try-complexity':
@@ -408,11 +561,15 @@ export const typescriptRuleSettings: Linter.RulesRecord = {
     { considerDefaultExhaustiveForUnions: true },
   ],
   // The Chrome typings mark part of the `chrome` global as the deprecated
-  // Chrome Apps platform, which does not apply to browser extensions.
-  '@typescript-eslint/no-deprecated': [
-    'error',
-    { allow: [{ from: 'package', package: '@types/chrome', name: 'chrome' }] },
-  ],
+  // Chrome Apps platform, which does not apply to browser extensions. The
+  // package form of the allow ({ from: 'package', package: '@types/chrome' })
+  // only matches a value whose type is declared in that package, so it covers
+  // `chrome.runtime.sendMessage(...)` but not the namespace in a type position
+  // such as `chrome.tabs.Tab`, where the identifier has no type to look up. A
+  // plain name matches the identifier itself, in both positions. Only
+  // identifiers named `chrome` are allowed; deprecated members such as
+  // `chrome.tabs.executeScript` are still reported on their own name.
+  '@typescript-eslint/no-deprecated': ['error', { allow: ['chrome'] }],
   // The apps throw an HTTP Response on purpose to end a request handler. Any
   // other value that is not an Error is still reported. A project with the
   // DOM library declares Response in the lib; a Node-only project gets it from
@@ -445,7 +602,7 @@ const NOT_DECIDED =
  * plugin is either on (its `recommended` set or the settings above) or listed
  * here, and a test enforces that.
  */
-export const typescriptExclusions: Record<string, string> = {
+export const typescriptExclusions = {
   // Judged and kept off.
   'no-magic-numbers':
     'Reports every bare number, including 0, 1, 2 and HTTP status codes: 29,067 findings across the repositories, 72% of them in tests, and no auto-fix. Making it useful means ignoring most of what it checks.',

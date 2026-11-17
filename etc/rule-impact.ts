@@ -31,7 +31,7 @@ async function exists(target: string): Promise<boolean> {
     .catch(() => false);
 }
 
-export interface LibraryDefinition {
+interface LibraryDefinition {
   id: string;
   title: string;
   pkg: string;
@@ -48,14 +48,14 @@ export interface Hit {
   message: string;
 }
 
-export interface RuleDescriptor {
+interface RuleDescriptor {
   name: string;
   description: string;
   deprecated: boolean;
   typed: boolean;
 }
 
-export interface RuleInfo {
+interface RuleInfo {
   name: string;
   description: string;
   typed: boolean;
@@ -233,19 +233,15 @@ export function sampleHits(hits: Hit[], max: number): Hit[] {
     .values()
     .toArray();
   const longest = Math.max(0, ...queues.map((queue) => queue.length));
-  const picked: Hit[] = [];
-  for (let round = 0; round < longest && picked.length < max; round++) {
-    for (const queue of queues) {
-      if (round < queue.length && picked.length < max) {
-        picked.push(queue[round]);
-      }
-    }
-  }
-  return picked;
+  return Array.from({ length: longest }, (_, round) =>
+    queues.flatMap((queue) => (round < queue.length ? [queue[round]] : [])),
+  )
+    .flat()
+    .slice(0, max);
 }
 
 const COLLATOR = new Intl.Collator();
-const CRASHED_RULE = /Rule: "([^"]+)"/;
+const CRASHED_RULE = /Rule: "([^"]+)"/u;
 
 const escapeHtml = (text: string): string =>
   text
@@ -254,7 +250,7 @@ const escapeHtml = (text: string): string =>
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
 
-const slug = (text: string): string => text.replaceAll(/[^a-z0-9]+/gi, '-');
+const slug = (text: string): string => text.replaceAll(/[^a-z0-9]+/giu, '-');
 
 const ruleClass = (rule: RuleInfo): string => {
   if (!rule.enabled) {
@@ -327,13 +323,14 @@ function renderSnippet(hit: Hit, readLines: ReportData['readLines']): string {
   const lines = readLines(hit.repo, hit.file);
   const first = Math.max(1, hit.line - 3);
   const last = Math.min(lines.length, hit.line + 3);
-  const body: string[] = [];
-  for (let number = first; number <= last; number++) {
-    const hitClass = number === hit.line ? ' class="hit"' : '';
-    body.push(
-      `<span${hitClass}><span class="ln">${number}</span>${escapeHtml(lines[number - 1] ?? '')}</span>`,
-    );
-  }
+  const body = Array.from(
+    { length: Math.max(0, last - first + 1) },
+    (_, offset) => {
+      const number = first + offset;
+      const hitClass = number === hit.line ? ' class="hit"' : '';
+      return `<span${hitClass}><span class="ln">${number}</span>${escapeHtml(lines[number - 1] ?? '')}</span>`;
+    },
+  );
   return (
     `<div class="v"><div class="vh">${escapeHtml(hit.repo)}/${escapeHtml(hit.file)}:${hit.line}</div>` +
     `<div class="vm">${escapeHtml(hit.message)}</div><pre>${body.join('')}</pre></div>`
@@ -364,11 +361,9 @@ function renderRulePane(
     shown.length < rule.hits.length
       ? `<p class="mut">Showing ${shown.length} of ${rule.hits.length}, spread across repositories.</p>`
       : '';
-  return (
-    `${open}<h2>${escapeHtml(title)}: ${rule.hits.length} findings</h2>${cut}` +
-    shown.map((hit) => renderSnippet(hit, data.readLines)).join('') +
-    '</div>'
-  );
+  return `${open}<h2>${escapeHtml(title)}: ${rule.hits.length} findings</h2>${cut}${shown
+    .map((hit) => renderSnippet(hit, data.readLines))
+    .join('')}</div>`;
 }
 
 /**
@@ -400,9 +395,9 @@ function repoRuleMatrix(library: LibraryResult, data: ReportData): string {
       const total = cells.reduce((sum, count) => sum + count, 0) + other;
       return total === 0
         ? ''
-        : `<tr><td>${escapeHtml(repo)}</td><td><b>${total}</b></td>` +
-            cells.map((count) => `<td>${count || ''}</td>`).join('') +
-            `<td>${other || ''}</td></tr>`;
+        : `<tr><td>${escapeHtml(repo)}</td><td><b>${total}</b></td>${cells
+            .map((count) => `<td>${count || ''}</td>`)
+            .join('')}<td>${other || ''}</td></tr>`;
     })
     .join('');
   return `<table><tr><th>repo</th><th>total</th>${header}<th>${rest.length} more</th></tr>${rows}</table>`;
@@ -518,33 +513,29 @@ export function buildReport(data: ReportData): string {
  * @param libraries
  */
 export function buildRuleList(libraries: LibraryResult[]): string {
-  const lines = [
+  const header = [
     '# Rules in this scan',
     '',
     "Struck-through rules are not run; the reason follows. Rules marked (type-aware) run in a second pass that uses each repository's tsconfig.",
     '',
   ];
-  for (const library of libraries) {
+  const sections = libraries.flatMap((library) => {
     const running = library.rules.filter((rule) => rule.enabled).length;
-    lines.push(
+    return [
       `## ${library.definition.pkg} ${library.version}: ${running} of ${library.rules.length} rules run`,
       '',
-    );
-    if (library.error) {
-      lines.push(`Could not load: ${library.error}`, '');
-    }
-    for (const rule of library.rules) {
-      const typed = rule.typed ? ' (type-aware)' : '';
-      const description = rule.description ? ` ${rule.description}` : '';
-      lines.push(
-        rule.enabled
+      ...(library.error ? [`Could not load: ${library.error}`, ''] : []),
+      ...library.rules.map((rule) => {
+        const typed = rule.typed ? ' (type-aware)' : '';
+        const description = rule.description ? ` ${rule.description}` : '';
+        return rule.enabled
           ? `- \`${rule.name}\`${typed}${description}`
-          : `- ~~\`${rule.name}\`~~ **${rule.reason}**${description}`,
-      );
-    }
-    lines.push('');
-  }
-  return lines.join('\n');
+          : `- ~~\`${rule.name}\`~~ **${rule.reason}**${description}`;
+      }),
+      '',
+    ];
+  });
+  return [...header, ...sections].join('\n');
 }
 
 interface LoadedLibrary {
@@ -568,12 +559,9 @@ async function entryPoint(packageDir: string): Promise<string> {
     }
     if (target && typeof target === 'object') {
       const conditions = target as Record<string, unknown>;
-      for (const key of ['import', 'node', 'default', 'require']) {
-        const found = pick(conditions[key]);
-        if (found) {
-          return found;
-        }
-      }
+      return ['import', 'node', 'default', 'require']
+        .map((key) => pick(conditions[key]))
+        .find(Boolean);
     }
     return undefined;
   };
@@ -690,11 +678,11 @@ async function loadLibrary(
  * @param library
  * @param rules
  */
-function preflight(library: LoadedLibrary, rules: RuleInfo[]): void {
+function preflight(library: LoadedLibrary, rules: RuleInfo[]): RuleInfo[] {
   const linter = new Linter();
-  for (const rule of rules) {
+  return rules.map((rule) => {
     if (!rule.enabled || rule.typed) {
-      continue;
+      return rule;
     }
     try {
       const messages = linter.verify(
@@ -720,11 +708,15 @@ function preflight(library: LoadedLibrary, rules: RuleInfo[]): void {
       if (fatal) {
         throw new Error(fatal.message);
       }
+      return rule;
     } catch (error) {
-      rule.enabled = false;
-      rule.reason = `Cannot run unconfigured: ${messageOf(error).split('\n', 1)[0]}`;
+      return {
+        ...rule,
+        enabled: false,
+        reason: `Cannot run unconfigured: ${messageOf(error).split('\n', 1)[0]}`,
+      };
     }
-  }
+  });
 }
 
 /**
@@ -762,21 +754,27 @@ function lintConfig(
   ignores: string[],
   typedProject?: string,
 ): Linter.Config[] {
-  const plugins: Record<string, ESLint.Plugin> = {};
-  const settings: Record<string, unknown> = {};
-  const enabled: Record<string, 'error'> = {};
-  for (const library of loaded) {
-    if (!library.plugin) {
-      continue;
-    }
-    plugins[library.definition.namespace] = library.plugin;
-    Object.assign(settings, library.definition.settings);
-    for (const rule of rules.get(library.definition.id) ?? []) {
-      if (rule.enabled && rule.typed === Boolean(typedProject)) {
-        enabled[`${library.definition.namespace}/${rule.name}`] = 'error';
-      }
-    }
-  }
+  const withPlugin = loaded.filter((library) => library.plugin);
+  const plugins = Object.fromEntries(
+    withPlugin.map((library) => [
+      library.definition.namespace,
+      library.plugin!,
+    ]),
+  );
+  const settings = Object.assign(
+    {},
+    ...withPlugin.map((library) => library.definition.settings),
+  ) as Record<string, unknown>;
+  const enabled = Object.fromEntries(
+    withPlugin.flatMap((library) =>
+      (rules.get(library.definition.id) ?? [])
+        .filter((rule) => rule.enabled && rule.typed === Boolean(typedProject))
+        .map((rule) => [
+          `${library.definition.namespace}/${rule.name}`,
+          'error' as const,
+        ]),
+    ),
+  );
   return [
     { ignores },
     {
@@ -825,28 +823,35 @@ async function lintRepo(
     errorOnUnmatchedPattern: false,
   });
   const results = await eslint.lintFiles(['.']);
-  let found = 0;
-  let unparsed = 0;
-  for (const result of results) {
-    if (result.messages.some((message) => message.fatal)) {
-      unparsed++;
-    }
-    for (const message of result.messages) {
-      const rule = message.ruleId
-        ? rulesByQualifiedName.get(message.ruleId)
-        : undefined;
-      if (!rule) {
-        continue;
-      }
-      rule.hits.push({
-        repo,
-        file: path.relative(path.join(orgDir, repo), result.filePath),
-        line: message.line,
-        message: message.message,
-      });
-      found++;
-    }
-  }
+  const unparsed = results.filter((result) =>
+    result.messages.some((message) => message.fatal),
+  ).length;
+  const found = results
+    .flatMap((result) =>
+      result.messages.flatMap((message) => {
+        const rule = message.ruleId
+          ? rulesByQualifiedName.get(message.ruleId)
+          : undefined;
+        return rule
+          ? [
+              {
+                rule,
+                hit: {
+                  repo,
+                  file: path.relative(path.join(orgDir, repo), result.filePath),
+                  line: message.line,
+                  message: message.message,
+                },
+              },
+            ]
+          : [];
+      }),
+    )
+    .map(({ rule, hit }) => {
+      // eslint-disable-next-line functional/immutable-data -- hits accumulate on the shared rule record the report is built from
+      rule.hits.push(hit);
+      return hit;
+    }).length;
   return { found, unparsed };
 }
 
@@ -863,24 +868,86 @@ async function lintRepoRecovering(
   repo: string,
   makeConfig: () => Linter.Config[],
   rulesByQualifiedName: Map<string, RuleInfo>,
+  attempt = 0,
 ): Promise<{ found?: number; unparsed?: number; error?: string }> {
-  for (let attempt = 0; attempt < 50; attempt++) {
-    try {
-      return await lintRepo(orgDir, repo, makeConfig(), rulesByQualifiedName);
-    } catch (error) {
-      const message = messageOf(error);
-      const crashed = CRASHED_RULE.exec(message)?.[1];
-      const rule = crashed ? rulesByQualifiedName.get(crashed) : undefined;
-      if (!rule?.enabled) {
-        return { error: message.split('\n', 1)[0] };
-      }
-      rule.enabled = false;
-      rule.reason = `Crashed while linting ${repo}: ${message.split('\n', 1)[0]}`;
-      rule.hits = [];
-      console.error(`${repo}: switched off ${crashed}, retrying`);
-    }
+  if (attempt >= 50) {
+    return { error: 'too many crashing rules' };
   }
-  return { error: 'too many crashing rules' };
+  try {
+    return await lintRepo(orgDir, repo, makeConfig(), rulesByQualifiedName);
+  } catch (error) {
+    const message = messageOf(error);
+    const crashed = CRASHED_RULE.exec(message)?.[1];
+    const rule = crashed ? rulesByQualifiedName.get(crashed) : undefined;
+    if (!rule?.enabled) {
+      return { error: message.split('\n', 1)[0] };
+    }
+    // eslint-disable-next-line functional/immutable-data -- the crashed rule is switched off on the shared record so the retry skips it
+    Object.assign(rule, {
+      enabled: false,
+      reason: `Crashed while linting ${repo}: ${message.split('\n', 1)[0]}`,
+      hits: [],
+    });
+    console.error(`${repo}: switched off ${crashed}, retrying`);
+    return lintRepoRecovering(
+      orgDir,
+      repo,
+      makeConfig,
+      rulesByQualifiedName,
+      attempt + 1,
+    );
+  }
+}
+
+interface RepoOutcome {
+  repo: string;
+  error?: string;
+  note?: string;
+}
+
+const SECONDS = new Intl.NumberFormat('en', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/**
+ * The tsconfig a repository's type-aware pass uses: `tsconfig.jest.json` when
+ * it exists, else `tsconfig.json`.
+ * @param orgDir
+ * @param repo
+ */
+async function findProject(
+  orgDir: string,
+  repo: string,
+): Promise<string | undefined> {
+  const names = ['tsconfig.jest.json', 'tsconfig.json'].map((name) =>
+    path.join(orgDir, repo, name),
+  );
+  const present = await Promise.all(names.map(async (name) => exists(name)));
+  return names.find((_name, index) => present[index]);
+}
+
+/**
+ * The note a repository gets about its type-aware pass, if any.
+ * @param hasTyped
+ * @param typed
+ */
+function noteFor(
+  hasTyped: boolean,
+  typed: { unparsed?: number; error?: string } | undefined,
+): string | undefined {
+  if (!hasTyped) {
+    return undefined;
+  }
+  if (!typed) {
+    return 'no tsconfig, type-aware rules skipped';
+  }
+  if (typed.error) {
+    return `type-aware pass failed: ${typed.error}`;
+  }
+  return typed.unparsed
+    ? `${typed.unparsed} files not in tsconfig, skipped by type-aware rules`
+    : undefined;
 }
 
 /**
@@ -904,6 +971,7 @@ async function main(): Promise<void> {
     console.error(
       'Usage: node etc/rule-impact.ts --org-dir <dir of repos> [--out report.html] [--ignore glob]... [--repos a,b] [--libraries promise,jsdoc] [--max-snippets 150] [--refresh] [--list]',
     );
+    // eslint-disable-next-line functional/immutable-data -- setting the exit code is how a script reports failure
     process.exitCode = 1;
     return;
   }
@@ -923,32 +991,40 @@ async function main(): Promise<void> {
   const loaded = await Promise.all(
     selected.map(async (library) => loadLibrary(library, cacheDir)),
   );
-  const rules = new Map<string, RuleInfo[]>();
-  const byQualifiedName = new Map<string, RuleInfo>();
-  for (const library of loaded) {
-    const classified = classifyRules(
+  const prepared = loaded.map((library) => {
+    const base = classifyRules(
       library.descriptors,
       library.definition.disabled,
     );
-    if (library.plugin) {
-      preflight(library, classified);
-    }
-    const refused = classified.filter((rule) =>
-      rule.reason?.startsWith('Cannot run unconfigured'),
-    );
-    for (const rule of refused.slice(0, 3)) {
-      console.error(`  ${rule.name}: ${rule.reason}`);
-    }
-    rules.set(library.definition.id, classified);
-    for (const rule of classified) {
-      byQualifiedName.set(`${library.definition.namespace}/${rule.name}`, rule);
-    }
+    const classified = library.plugin ? preflight(library, base) : base;
+    classified
+      .filter((rule) => rule.reason?.startsWith('Cannot run unconfigured'))
+      .slice(0, 3)
+      // eslint-disable-next-line unicorn/no-array-for-each -- progress is printed per rule, there is no value to map
+      .forEach((rule) => {
+        console.error(`  ${rule.name}: ${rule.reason}`);
+      });
     const enabledCount = classified.filter((rule) => rule.enabled).length;
     const failure = library.error ? ` (${library.error})` : '';
     console.error(
       `${library.definition.pkg}: ${enabledCount}/${classified.length} rules enabled${failure}`,
     );
-  }
+    return { library, classified };
+  });
+  const rules = new Map<string, RuleInfo[]>(
+    prepared.map(({ library, classified }) => [
+      library.definition.id,
+      classified,
+    ]),
+  );
+  const byQualifiedName = new Map<string, RuleInfo>(
+    prepared.flatMap(({ library, classified }) =>
+      classified.map((rule): [string, RuleInfo] => [
+        `${library.definition.namespace}/${rule.name}`,
+        rule,
+      ]),
+    ),
+  );
 
   const libraryResults: LibraryResult[] = loaded.map((library) => ({
     definition: library.definition,
@@ -968,12 +1044,13 @@ async function main(): Promise<void> {
     values.repos ? new Set(values.repos.split(',')) : undefined,
   );
   const ignores = [...BASE_IGNORES, ...(values.ignore ?? [])];
-  const repoErrors: Record<string, string> = {};
-  const repoNotes: Record<string, string> = {};
   const hasTyped = byQualifiedName
     .values()
     .some((rule) => rule.enabled && rule.typed);
-  for (const [index, repo] of repos.entries()) {
+  const scanRepo = async (
+    repo: string,
+    index: number,
+  ): Promise<RepoOutcome> => {
     const started = Date.now();
     const label = `[${index + 1}/${repos.length}] ${repo}`;
     const outcome = await lintRepoRecovering(
@@ -983,46 +1060,40 @@ async function main(): Promise<void> {
       byQualifiedName,
     );
     if (outcome.error) {
-      repoErrors[repo] = outcome.error;
       console.error(`${label}: failed, ${outcome.error}`);
-      continue;
+      return { repo, error: outcome.error };
     }
-    let found = outcome.found ?? 0;
-    let project: string | undefined;
-    for (const name of ['tsconfig.jest.json', 'tsconfig.json']) {
-      const candidate = path.join(orgDir, repo, name);
-      if (await exists(candidate)) {
-        project = candidate;
-        break;
-      }
-    }
-    if (hasTyped && !project) {
-      repoNotes[repo] = 'no tsconfig, type-aware rules skipped';
-    } else if (hasTyped) {
-      const typed = await lintRepoRecovering(
-        orgDir,
-        repo,
-        () => lintConfig(loaded, rules, ignores, project),
-        byQualifiedName,
-      );
-      found += typed.found ?? 0;
-      if (typed.error) {
-        repoNotes[repo] = `type-aware pass failed: ${typed.error}`;
-      } else if (typed.unparsed) {
-        repoNotes[repo] =
-          `${typed.unparsed} files not in tsconfig, skipped by type-aware rules`;
-      } else {
-        // Nothing to note: the type-aware pass was clean.
-      }
-    } else {
-      // No type-aware rules are enabled, so there is nothing to note.
-    }
+    const project = hasTyped ? await findProject(orgDir, repo) : undefined;
+    const typed =
+      hasTyped && project
+        ? await lintRepoRecovering(
+            orgDir,
+            repo,
+            () => lintConfig(loaded, rules, ignores, project),
+            byQualifiedName,
+          )
+        : undefined;
+    const found = (outcome.found ?? 0) + (typed?.found ?? 0);
     console.error(
-      `${label}: ${found} findings (${((Date.now() - started) / 1000).toFixed(1)}s)`,
+      `${label}: ${found} findings (${SECONDS.format((Date.now() - started) / 1000)}s)`,
     );
-  }
+    return { repo, note: noteFor(hasTyped, typed) };
+  };
+  // Repositories are linted one after the other: a typed lint needs several GB.
+  const outcomes = await repos.reduce<Promise<RepoOutcome[]>>(
+    async (previous, repo, index) => [
+      ...(await previous),
+      await scanRepo(repo, index),
+    ],
+    Promise.resolve([]),
+  );
+  const repoErrors = Object.fromEntries(
+    outcomes.flatMap(({ repo, error }) => (error ? [[repo, error]] : [])),
+  );
+  const repoNotes = Object.fromEntries(
+    outcomes.flatMap(({ repo, note }) => (note ? [[repo, note]] : [])),
+  );
 
-  const lineCache = new Map<string, string[]>();
   const wanted = new Set(
     libraryResults.flatMap((library) =>
       library.rules.flatMap((rule) =>
@@ -1030,16 +1101,16 @@ async function main(): Promise<void> {
       ),
     ),
   );
-  await Promise.all(
-    Array.from(wanted, async (full) => {
-      lineCache.set(
+  const lineCache = new Map<string, string[]>(
+    await Promise.all(
+      Array.from(wanted, async (full): Promise<[string, string[]]> => [
         full,
         await fs
           .readFile(full, 'utf8')
           .then((text) => text.split('\n'))
           .catch(() => []),
-      );
-    }),
+      ]),
+    ),
   );
   const report = buildReport({
     generatedAt: new Date().toISOString(),

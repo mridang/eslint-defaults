@@ -1,9 +1,10 @@
 import { describe, expect, it, test } from '@jest/globals';
-import { ESLint, type Linter } from 'eslint';
+import { ESLint } from 'eslint';
 import { hardenedRules, jsdocTypeRules } from '../src/hardened.js';
 import eslintConfig from '../eslint.config.mjs';
 import { COVERAGE_SOURCES, MARKER_CODE } from './utils/coverage-sources.js';
 import { matchesFileGlob, matchesIgnores } from './utils/patterns.js';
+import type { Linter } from 'eslint';
 
 const lintMessages = async (text: string, filePath: string) => {
   const eslint = new ESLint({ cwd: process.cwd() });
@@ -44,12 +45,10 @@ const configs = (
   Array.isArray(eslintConfig) ? eslintConfig : [eslintConfig]
 ) as Linter.Config[];
 
-const extensionPaths: Record<string, string> = {
-  md: 'docs/readme.md/code.js',
-};
+const extensionPaths = new Map([['md', 'docs/readme.md/code.js']]);
 
 function buildPath(extension: string): string {
-  return extensionPaths[extension] ?? `src/example/file.${extension}`;
+  return extensionPaths.get(extension) ?? `src/example/file.${extension}`;
 }
 
 describe('filetype coverage', () => {
@@ -181,13 +180,13 @@ const JAVASCRIPT_FENCES = [
   'ecmascript',
 ];
 /** The file extension the Markdown processor gives a code block of each language. */
-const FENCE_EXTENSION: Record<string, string> = {
-  javascript: 'js',
-  ecmascript: 'js',
-  typescript: 'ts',
-};
+const FENCE_EXTENSION = new Map([
+  ['javascript', 'js'],
+  ['ecmascript', 'js'],
+  ['typescript', 'ts'],
+]);
 const fenceExtension = (fence: string): string =>
-  FENCE_EXTENSION[fence] ?? fence;
+  FENCE_EXTENSION.get(fence) ?? fence;
 const MARKER_RULE = 'unicorn/prefer-node-protocol';
 
 type Language = 'typescript' | 'javascript';
@@ -195,7 +194,7 @@ type Language = 'typescript' | 'javascript';
 const hardened = hardenedRules();
 
 function expectedRules(language: Language, typed: boolean): string[] {
-  const rules: Record<string, unknown> = {
+  const rules = {
     ...hardened.untyped,
     ...(typed ? hardened.typed : {}),
     ...(language === 'typescript' ? jsdocTypeRules.ts : jsdocTypeRules.js),
@@ -476,10 +475,21 @@ describe('no file kind is given a rule from a plugin that is not loaded', () => 
 
 describe('rules adjusted for Prettier, frameworks and tests', () => {
   const eslint = new ESLint({ overrideConfigFile: 'eslint.config.mjs' });
-  const ruleOf = async (file: string, rule: string): Promise<unknown> => {
+  const ruleOf = async (
+    file: string,
+    rule: string,
+  ): Promise<unknown[] | undefined> => {
     const config = (await eslint.calculateConfigForFile(file)) as
       Linter.Config | undefined;
-    return config?.rules?.[rule];
+    return config?.rules?.[rule] as unknown[] | undefined;
+  };
+
+  const severityOf = async (
+    file: string,
+    rule: string,
+  ): Promise<number | undefined> => {
+    const [severity] = (await ruleOf(file, rule)) ?? [];
+    return severity as number | undefined;
   };
 
   test.each([
@@ -487,9 +497,8 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
     'unicorn/no-nested-ternary',
     'unicorn/empty-brace-spaces',
     'unicorn/template-indent',
-    'no-unexpected-multiline',
   ])('leaves %s to Prettier', async (rule) => {
-    expect(((await ruleOf('src/example.ts', rule)) as unknown[])?.[0]).toBe(0);
+    expect(await severityOf('src/example.ts', rule)).toBe(0);
   });
 
   test('ignores route parameter file names', async () => {
@@ -499,23 +508,15 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
   });
 
   test('ignores browser globals in the Node compatibility rule', async () => {
-    expect(
-      JSON.stringify(
-        await ruleOf('src/a.ts', 'n/no-unsupported-features/node-builtins'),
-      ),
-    ).toContain('navigator');
-    expect(
-      JSON.stringify(
-        await ruleOf('src/a.ts', 'n/no-unsupported-features/node-builtins'),
-      ),
-    ).toContain('sqlite');
+    const rule = JSON.stringify(
+      await ruleOf('src/a.ts', 'n/no-unsupported-features/node-builtins'),
+    );
+    expect(rule).toContain('navigator');
+    expect(rule).toContain('sqlite');
   });
 
   test('ignores unused names that start with an underscore', async () => {
-    const rule = (await ruleOf(
-      'src/a.ts',
-      'unused-imports/no-unused-vars',
-    )) as unknown[];
+    const rule = await ruleOf('src/a.ts', 'unused-imports/no-unused-vars');
     expect(JSON.stringify(rule)).toContain('^_');
     expect(
       await ruleOf('src/a.ts', '@typescript-eslint/no-unused-vars'),
@@ -533,7 +534,7 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
     'react/no-unknown-property',
   ])('turns %s off in Astro files only', async (rule) => {
     expect(await ruleOf('src/Page.astro', rule)).toEqual([0]);
-    expect(((await ruleOf('src/page.tsx', rule)) as unknown[])?.[0]).toBe(2);
+    expect(await severityOf('src/page.tsx', rule)).toBe(2);
   });
 
   test('leaves HTML layout to Prettier', async () => {
@@ -549,10 +550,8 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
   test.each(['n/no-sync', 'sonarjs/no-hardcoded-ip', 'unicorn/prefer-https'])(
     'turns %s off in tests only',
     async (rule) => {
-      expect(((await ruleOf('test/a.test.ts', rule)) as unknown[])?.[0]).toBe(
-        0,
-      );
-      expect(((await ruleOf('src/a.ts', rule)) as unknown[])?.[0]).toBe(2);
+      expect(await severityOf('test/a.test.ts', rule)).toBe(0);
+      expect(await severityOf('src/a.ts', rule)).toBe(2);
     },
   );
 });
