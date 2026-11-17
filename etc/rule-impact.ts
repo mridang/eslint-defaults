@@ -229,9 +229,9 @@ export function classifyRules(
  * @param max
  */
 export function sampleHits(hits: Hit[], max: number): Hit[] {
-  const queues = Map.groupBy(hits, (hit) => hit.repo)
-    .values()
-    .toArray();
+  const queues = Array.from(new Set(hits.map((hit) => hit.repo)), (repo) =>
+    hits.filter((hit) => hit.repo === repo),
+  );
   const longest = Math.max(0, ...queues.map((queue) => queue.length));
   return Array.from({ length: longest }, (_, round) =>
     queues.flatMap((queue) => (round < queue.length ? [queue[round]] : [])),

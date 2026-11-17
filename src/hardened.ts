@@ -155,6 +155,10 @@ const LIBRARIES: HardenedLibrary[] = [
     namespace: 'e18e',
     plugin: e18ePlugin,
     excluded: {
+      'prefer-spread-syntax':
+        'The same as unicorn/prefer-spread: it asks for spread where Array.from(text) is a string walk that @typescript-eslint/no-misused-spread rejects when spread, and its concat form collides with the other spread rules.',
+      'no-spread-in-reduce':
+        'Contradicts functional/immutable-data: a reduce that builds a value must either spread its accumulator (this rule) or mutate it (that rule), so no spelling satisfies both, and the code ends with a suppression either way; immutability wins, and the quadratic cost only matters on large inputs.',
       'prefer-array-fill':
         'Contradicts unicorn/no-array-from-fill: its fix writes Array.from({ length: n }).fill(1), which that rule rejects. The callback form that rule keeps is also the safe one for objects, since .fill({}) shares one object between every slot.',
       'prefer-get-or-insert':
@@ -235,6 +239,8 @@ const LIBRARIES: HardenedLibrary[] = [
         'Ported, enabled later: about 480 findings across the repositories. The rule is narrowed so it no longer conflicts with @typescript-eslint/use-unknown-in-catch-callback-variable.',
       'no-reexports-outside-entrypoints':
         'Ported, enabled later: contradicts unicorn/prefer-export-from, which is on: a renamed re-export of an imported name (export { X as Y }) is reported by one rule when written as a const and by the other when written as a re-export, so it cannot satisfy both.',
+      'no-reduce-accumulator-copy':
+        'The same as e18e/no-spread-in-reduce: it forbids copying the accumulator, and functional/immutable-data forbids mutating it, so a reduce that builds a value cannot satisfy both.',
       'no-reflect-apply':
         'Ported, enabled later: contradicts unicorn/prefer-reflect-apply, and no narrowing of the rule removes the conflict.',
       'max-boolean-conditions':
@@ -411,6 +417,12 @@ export const testOnlyGlobals: { name: string; message: string }[] = [
  * config, so these are switched off after it.
  */
 export const unicornExclusions = {
+  'catch-error-name':
+    'It wants the catch binding called error, and renames it to error_ when error is already in scope (an unrenamed import of a core error, a nested catch), which sonarjs/variable-name rejects with no fixer, so the two cannot both be satisfied; the binding name is left to the author, and unicorn/prevent-abbreviations still bans e.',
+  'prefer-iterator-concat':
+    'Rewrites [...a, ...b] and new Set([...a, ...b]) into Iterator.concat(...), which exists neither in Node 22 nor in the TypeScript lib, so the fixed code fails tsc and at runtime.',
+  'prefer-spread':
+    'Rewrites Array.from(text) into [...text], which @typescript-eslint/no-misused-spread reports on a string (it splits at code points, cutting characters that are several of them), and a.concat(b) forms collide with the spread rules; the bug-finding rule wins, and no-useless-spread still removes needless spreads.',
   'consistent-function-scoping':
     'Kept off by choice: it reports almost only code that is fine as written, such as a small formatter next to its only use or a React event handler inside its component, and most hits are in tests.',
   'try-complexity':
@@ -466,7 +478,13 @@ export const unicornRuleSettings: Linter.RulesRecord = {
   // A function that returns a value on some paths needs an explicit return
   // type, which makes this rule leave `return undefined` alone and satisfies
   // sonarjs/no-inconsistent-returns.
-  'unicorn/no-useless-undefined': ['error', { checkArrowFunctionBody: false }],
+  // checkArguments: false keeps the explicit `undefined` argument of a call: the rule's fixer
+  // deletes the initial value of reduce<T | undefined>(fn, undefined), which sonarjs/reduce-initial-value
+  // then needs and which the code no longer type checks without.
+  'unicorn/no-useless-undefined': [
+    'error',
+    { checkArrowFunctionBody: false, checkArguments: false },
+  ],
   'unicorn/prevent-abbreviations': [
     'error',
     {

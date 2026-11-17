@@ -145,7 +145,7 @@ async function withProjectClasses(
   const [severity, options] = Array.isArray(setting)
     ? [setting[0], (setting[1] ?? {}) as { whitelist?: string[] }]
     : [setting, {}];
-  const merged = new Set(options.whitelist).union(new Set(whitelist));
+  const merged = new Set((options.whitelist ?? []).concat(whitelist));
   return {
     ...rules,
     [NO_CUSTOM_CLASSNAME]: [

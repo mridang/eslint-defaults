@@ -51,8 +51,6 @@ export const coreRuleSettings: Linter.RulesRecord = {
   // /=/ at the start of a regex reads as a division assignment.
   // Two imports of one module; separate type imports are allowed.
   'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
-  // No else after a return.
-  'no-else-return': 'error',
   // == null hides which of null and undefined is meant.
   'no-eq-null': 'error',
   // eval runs strings as code.
@@ -167,8 +165,6 @@ export const coreRuleSettings: Linter.RulesRecord = {
   'prefer-rest-params': 'error',
   // Spread instead of .apply.
   'prefer-spread': 'error',
-  // Template literals instead of string concatenation.
-  'prefer-template': 'error',
   // A rethrown error keeps its cause.
   'preserve-caught-error': 'error',
   // parseInt takes an explicit radix.
@@ -235,8 +231,6 @@ export const coreJavaScriptRuleSettings: Linter.RulesRecord = {
 export const importRuleSettings: Linter.RulesRecord = {
   // export let can change under importers.
   'import/no-mutable-exports': 'error',
-  // Import a sibling package by name, not by relative path.
-  'import/no-relative-packages': 'error',
   // Type imports as a separate import type line; auto-fixed.
   'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
   // A module that imports itself.
@@ -379,6 +373,12 @@ export const reactRuleSettings: Linter.RulesRecord = {
 
 /** The ultracite rules left off, with the reason. Each names a rule of an installed plugin. */
 export const coreExclusions = {
+  'prefer-template':
+    'Its fixer turns a concatenation that contains a conditional into a template that nests another template (a template inside a template), which sonarjs/no-nested-template-literals then reports and has no fixer to undo; the readability rule wins over a style preference.',
+  'no-else-return':
+    'Its fixer drops the final else of an if / else if / else chain that returns in every branch, which leaves an else-if chain without an else, and sonarjs/elseif-without-else reports that and has no fixer to undo it.',
+  'import/no-relative-packages':
+    'Its fixer rewrites a relative path into node_modules (../node_modules/@actions/github/lib/context.js) to a package subpath (@actions/github/lib/context.js) that the package export map does not expose, so the fixed file no longer resolves; import/no-unresolved already reports imports that do not resolve.',
   'import/no-duplicates':
     'Its fixer collides with import/consistent-type-specifier-style (prefer top-level) on an import that mixes inline type specifiers and values, and writes a file that does not parse (a merged import that starts with a comma and loses its opening brace). The core no-duplicate-imports already reports every duplicate import, without a fixer.',
   'no-div-regex':

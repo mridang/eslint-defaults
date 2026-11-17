@@ -33,7 +33,7 @@
     "eslint": "^9.38.0 || ^10.0.0"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=20.0.0"
   },
   "repository": {
     "type": "git",

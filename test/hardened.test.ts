@@ -727,3 +727,77 @@ describe('fixers that must not collide', () => {
     expect(first.output).toBe(code);
   });
 });
+
+describe('rules that contradict each other or their own fixers', () => {
+  const unchanged: [string, string, string[]][] = [
+    [
+      'an if / else if / else chain that returns in every branch',
+      "export function name(kind: string): string {\n  if (kind === 'a') {\n    return 'first';\n  } else if (kind === 'b') {\n    return 'second';\n  } else {\n    return 'other';\n  }\n}\n",
+      ['no-else-return', 'sonarjs/elseif-without-else'],
+    ],
+    [
+      'a relative path into node_modules',
+      "export const load = async () =>\n  import('../../node_modules/@typescript-eslint/types/dist/index.js');\n",
+      ['import/no-relative-packages'],
+    ],
+    [
+      'a catch binding while a name is in scope',
+      "import { error } from 'node:console';\n\nexport function run(): void {\n  try {\n    error('x');\n  } catch (failure) {\n    throw failure;\n  }\n}\n",
+      ['unicorn/catch-error-name', 'sonarjs/variable-name'],
+    ],
+    [
+      'a string built by concatenation around a conditional',
+      "export const label = (id: string, ok: boolean, n: string): string =>\n  'a' + id + (ok ? 'x' + n : 'y');\n",
+      ['prefer-template', 'sonarjs/no-nested-template-literals'],
+    ],
+    [
+      'a reduce that spreads its accumulator',
+      'export const group = (items: string[]): Record<string, number> =>\n  items.reduce<Record<string, number>>(\n    (accumulator, item) => ({ ...accumulator, [item]: 1 }),\n    {},\n  );\n',
+      ['e18e/no-spread-in-reduce', 'tslop/no-reduce-accumulator-copy'],
+    ],
+    [
+      'a reduce with an explicit undefined initial value',
+      'export const last = (items: number[]): number | undefined =>\n  items.reduce<number | undefined>((_previous, item) => item, undefined);\n',
+      ['unicorn/no-useless-undefined', 'sonarjs/reduce-initial-value'],
+    ],
+    [
+      'a set built from two spreads',
+      'export const joined = (a: string[], b: string[]): Set<string> =>\n  new Set([...a, ...b]);\n',
+      ['unicorn/prefer-iterator-concat', 'e18e/prefer-spread-syntax'],
+    ],
+    [
+      'Array.from over a string',
+      'export const letters = (text: string): string[] => Array.from(text);\n',
+      ['unicorn/prefer-spread', 'e18e/prefer-spread-syntax'],
+    ],
+  ];
+
+  it.each(unchanged)(
+    'leaves %s as written, and a second fix changes nothing',
+    async (_name, code, rejected) => {
+      const first = await fixText(code, 'src/example/conflict.ts');
+      expect(first.fatal).toBe(false);
+      expect(first.output).toBe(code);
+      expect(first.ruleIds.filter((id) => rejected.includes(id))).toEqual([]);
+    },
+  );
+
+  it('turns react/self-closing-comp off for Astro files', async () => {
+    const eslint = new ESLint({ cwd: process.cwd() });
+    const config = (await eslint.calculateConfigForFile(
+      'src/pages/index.astro',
+    )) as { rules: Record<string, unknown> };
+    expect(config.rules['react/self-closing-comp']).toEqual([0]);
+  });
+});
+
+describe('Node 20 compatibility of the preset', () => {
+  it.each([
+    'export const grouped = Map.groupBy([1, 2], (n) => n % 2);\n',
+    'export const grouped = Object.groupBy([1, 2], (n) => String(n % 2));\n',
+  ])('reports a built-in that Node 20 lacks: %s', async (code) => {
+    expect(await lintAt(code, 'src/example/builtin.ts')).toContain(
+      'n/no-unsupported-features/es-builtins',
+    );
+  });
+});

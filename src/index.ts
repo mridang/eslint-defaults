@@ -437,6 +437,8 @@ const recommended: Linter.Config[] = [
     // hold a plain apostrophe. The React fixes for these break `astro check`.
     files: ['**/*.astro'],
     rules: {
+      // prettier-plugin-astro writes <div></div> back after the fixer makes it <div />.
+      'react/self-closing-comp': 'off',
       'react/jsx-key': 'off',
       'react/no-unescaped-entities': 'off',
       'react/no-unknown-property': 'off',
