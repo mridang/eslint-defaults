@@ -25,6 +25,7 @@ import htmlParser from '@html-eslint/parser';
 import cssPlugin from '@eslint/css';
 import ymlPlugin from 'eslint-plugin-yml';
 import tomlPlugin from 'eslint-plugin-toml';
+import dotenvPlugin from '@mridang/eslint-plugin-dotenv';
 import packageJsonPlugin from 'eslint-plugin-package-json';
 import vuePlugin from 'eslint-plugin-vue';
 import sveltePlugin from 'eslint-plugin-svelte';
@@ -308,12 +309,23 @@ const recommended: Linter.Config[] = [
       '.gitignore',
       '.idea',
       '.nvmrc',
-      '.env',
+      // Real environment files hold secrets: never linted, in any directory. The
+      // committed templates (.env.example, .env.sample, ...) are linted below.
+      '**/.env',
+      '**/.env.local',
+      '**/.env.*.local',
       '.prettierignore',
       '.out',
       'test/fixtures/**',
       '**/public/sw.js',
     ],
+  },
+  {
+    // A .gitignore line such as `.env*` also lists the committed templates. They hold
+    // names, not values, so they are linted whatever the .gitignore says. This comes
+    // after the .gitignore and the ignore list, and names only the template suffixes:
+    // `.env.production` and the like stay ignored.
+    ignores: ['!**/.env.example', '!**/.env.sample', '!**/.env.template'],
   },
   {
     files: ['**/*.md', '**/*.md/**'],
@@ -580,6 +592,8 @@ const recommended: Linter.Config[] = [
     },
   },
   ...tomlPlugin.configs['flat/standard'],
+  // The plugin types its configs as unknown; its recommended one is a flat config array.
+  ...(dotenvPlugin.configs.recommended as Linter.Config[]),
   ...htmlRecommended,
   {
     // Layout rules that contradict the Prettier output for HTML.
@@ -614,7 +628,11 @@ const recommended: Linter.Config[] = [
     language: 'css/css',
     languageOptions: { tolerant: true },
   },
-  cypressPlugin.configs.recommended,
+  {
+    // Its globals apply to every file, and the dotenv language takes no globals.
+    ...cypressPlugin.configs.recommended,
+    ignores: ['**/.env*', '**/*.env'],
+  },
   xssPlugin.configs.recommended,
   ...markdownRecommended,
   ...markdownProcessor,
