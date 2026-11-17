@@ -18,6 +18,7 @@ import {
   unavailableRules,
 } from '../src/core-rules.js';
 import { bannedApiRuleSettings } from '../src/hardened.js';
+import { configFor } from './utils/eslint-config.js';
 import type { Linter } from 'eslint';
 
 /**
@@ -57,11 +58,9 @@ const isOn = (value: unknown): boolean => {
 
 const effectiveRules = async (filePath: string): Promise<Set<string>> => {
   const eslint = new ESLint({ cwd: process.cwd() });
-  const config = (await eslint.calculateConfigForFile(filePath)) as {
-    rules: Record<string, unknown>;
-  };
+  const config = await configFor(eslint, filePath);
   return new Set(
-    Object.entries(config.rules)
+    Object.entries(config?.rules ?? {})
       .filter(([, value]) => isOn(value))
       .map(([name]) => name),
   );
@@ -79,7 +78,6 @@ const effectiveForEverything = async (
   return all;
 };
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access -- the plugins ship no types, so their values are any */
 const known = (): Set<string> => {
   const names = new Set<string>(Object.keys(jsPlugin.configs.all.rules));
   const plugins = {
@@ -95,7 +93,6 @@ const known = (): Set<string> => {
   }
   return names;
 };
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access -- end of the untyped plugin values */
 
 const isCovered = (name: string, effective: Set<string>): boolean =>
   isOn(settings[name]) ||
@@ -199,10 +196,11 @@ describe('ultracite rule settings in ESLint', () => {
           files: ['**/*.{js,ts}'],
           languageOptions: { parser: typescriptParser, sourceType: 'module' },
           plugins: {
-            import: fixupPluginRules(importPlugin as ESLint.Plugin),
+            import: fixupPluginRules(importPlugin),
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- eslint-plugin-react types its rules for its own rule API, which ESLint.Plugin does not accept
             react: fixupPluginRules(reactPlugin as unknown as ESLint.Plugin),
             'react-hooks': reactHooksPlugin,
-            'jsx-a11y': fixupPluginRules(jsxA11yPlugin as ESLint.Plugin),
+            'jsx-a11y': fixupPluginRules(jsxA11yPlugin),
           },
           settings: { react: { version: '19.0' } },
           rules: { ...settings },

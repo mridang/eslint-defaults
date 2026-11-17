@@ -174,11 +174,10 @@ const isStableVariable = (
   variable: Scope.Variable,
   node: TSESTree.VariableDeclarator,
 ): boolean =>
-  node.parent.type === AST_NODE_TYPES.VariableDeclaration &&
-  (node.parent.kind === 'const' ||
-    variable.references.every(
-      (reference) => reference.init || !reference.isWrite(),
-    ));
+  node.parent.kind === 'const' ||
+  variable.references.every(
+    (reference) => reference.init || !reference.isWrite(),
+  );
 
 const isConstantString = (
   context: Rule.RuleContext,

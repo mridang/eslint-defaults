@@ -18,6 +18,7 @@ import {
   textOf,
   unwrapExpression,
   visitorKeys,
+  programOf,
 } from './shared/rule.js';
 import type {
   TypeEnvironment,
@@ -68,7 +69,6 @@ const isStableConst = (
   variable: Scope.Variable,
   declarator: TSESTree.VariableDeclarator,
 ): boolean =>
-  declarator.parent.type === AST_NODE_TYPES.VariableDeclaration &&
   declarator.parent.kind === 'const' &&
   variable.references.every(
     (reference) => reference.init || !reference.isWrite(),
@@ -79,7 +79,7 @@ const hasKnownEvidence = (
   expression: TSESTree.Node,
   visited = new Set<Scope.Variable>(),
 ): boolean => {
-  if (isKnownEvidenceExpression(expression as TSESTree.Expression)) {
+  if (isKnownEvidenceExpression(expression)) {
     return true;
   }
   const unwrapped = unwrap(expression);
@@ -216,7 +216,7 @@ const hasKnownCallArgumentEvidence = (
     );
   }
   if (expression.type !== AST_NODE_TYPES.Identifier) {
-    return isKnownEvidenceExpression(expression as TSESTree.Expression);
+    return isKnownEvidenceExpression(expression);
   }
   const variable = resolveVariable(context, expression);
   if (variable === null || visited.has(variable)) {
@@ -360,7 +360,7 @@ export default defineRule({
   },
   create(context) {
     const environment: TypeEnvironment = createTypeEnvironment(
-      context.sourceCode.ast as unknown as TSESTree.Program,
+      programOf(context),
       visitorKeys(context),
     );
 

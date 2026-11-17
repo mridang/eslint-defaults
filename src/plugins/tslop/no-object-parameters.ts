@@ -10,6 +10,7 @@ import {
 import {
   defineRule,
   onParameterOwners,
+  programOf,
   report,
   visitorKeys,
 } from './shared/rule.js';
@@ -44,7 +45,7 @@ export default defineRule({
   },
   create(context) {
     const environment: TypeAliasEnvironment = createTypeAliasEnvironment(
-      context.sourceCode.ast as unknown as TSESTree.Program,
+      programOf(context),
       visitorKeys(context),
     );
 

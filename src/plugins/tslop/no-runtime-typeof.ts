@@ -1,5 +1,5 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
-import { defineRule, report } from './shared/rule.js';
+import { defineRule, report, ruleOptions } from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 
 /**
@@ -76,9 +76,9 @@ export default defineRule({
     },
   },
   create(context) {
-    const option = context.options[0] as
-      { allowInTypeGuards?: boolean } | undefined;
-    const allowInTypeGuards = option?.allowInTypeGuards === true;
+    const allowInTypeGuards =
+      ruleOptions<{ allowInTypeGuards: boolean }>(context).allowInTypeGuards ===
+      true;
     /* eslint-disable sonarjs/function-name -- ESLint visitor keys are the AST node type names, fixed by the ESLint API */
     return {
       UnaryExpression(node: TSESTree.UnaryExpression) {

@@ -1,5 +1,6 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
 import {
+  asTypeScript,
   defineRule,
   definitionNode,
   report,
@@ -94,7 +95,7 @@ const isBroadRecord = (type: TSESTree.TypeNode): boolean => {
   if (type.type !== AST_NODE_TYPES.TSTypeLiteral || type.members.length !== 1) {
     return false;
   }
-  const [member] = type.members;
+  const member = type.members.at(0);
   if (
     member?.type !== AST_NODE_TYPES.TSIndexSignature ||
     member.parameters.length !== 1
@@ -230,9 +231,7 @@ const writeOnceConst = (
     return null;
   }
   const declaration = declarator.parent;
-  return declaration.type === AST_NODE_TYPES.VariableDeclaration &&
-    declaration.kind === 'const' &&
-    !hasWrite(variable)
+  return declaration.kind === 'const' && !hasWrite(variable)
     ? { declarator, init }
     : null;
 };
@@ -259,11 +258,9 @@ const knownValueEvidence = (
   if (variable === null || visited.has(variable)) {
     return null;
   }
-  const annotated = variable.identifiers.find(
-    (identifier) =>
-      (identifier as unknown as TSESTree.Identifier).typeAnnotation !==
-      undefined,
-  ) as unknown as TSESTree.Identifier | undefined;
+  const annotated = variable.identifiers
+    .map((identifier) => asTypeScript<TSESTree.Identifier>(identifier))
+    .find((identifier) => identifier.typeAnnotation !== undefined);
   const annotation = annotated?.typeAnnotation?.typeAnnotation;
   if (annotation !== undefined && annotated !== undefined) {
     if (

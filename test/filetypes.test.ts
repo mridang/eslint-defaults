@@ -1,7 +1,9 @@
 import { describe, expect, it, test } from '@jest/globals';
 import { ESLint } from 'eslint';
 import { hardenedRules, jsdocTypeRules } from '../src/hardened.js';
+import { fieldOf, normalizeConfigArray } from '../src/utilities.js';
 import eslintConfig from '../eslint.config.mjs';
+import { configFor } from './utils/eslint-config.js';
 import { COVERAGE_SOURCES, MARKER_CODE } from './utils/coverage-sources.js';
 import { matchesFileGlob, matchesIgnores } from './utils/patterns.js';
 import type { Linter } from 'eslint';
@@ -41,9 +43,7 @@ const fileTypeCases = [
 ];
 
 const collator = new Intl.Collator();
-const configs = (
-  Array.isArray(eslintConfig) ? eslintConfig : [eslintConfig]
-) as Linter.Config[];
+const configs = normalizeConfigArray(eslintConfig);
 
 const extensionPaths = new Map([['md', 'docs/readme.md/code.js']]);
 
@@ -59,7 +59,7 @@ describe('filetype coverage', () => {
       if (!matchesFiles || matchesIgnores(filePath, config.ignores)) {
         return false;
       }
-      const hasRules = config.rules && Object.keys(config.rules).length > 0;
+      const hasRules = Object.keys(config.rules ?? {}).length > 0;
       const hasParser = Boolean(config.languageOptions?.parser);
       const hasProcessor =
         typeof config.processor === 'string' && config.processor.length > 0;
@@ -200,7 +200,6 @@ function expectedRules(language: Language, typed: boolean): string[] {
     ...(language === 'typescript' ? jsdocTypeRules.ts : jsdocTypeRules.js),
   };
   return Object.entries(rules)
-    .filter(([, value]) => value !== 'off')
     .map(([name]) => name)
     .toSorted((a, b) => collator.compare(a, b));
 }
@@ -209,8 +208,7 @@ async function activeRules(
   filePath: string,
 ): Promise<{ rules: Set<string>; project: unknown }> {
   const eslint = new ESLint({ cwd: process.cwd() });
-  const config = (await eslint.calculateConfigForFile(filePath)) as
-    Linter.Config | undefined;
+  const config = await configFor(eslint, filePath);
   const active = Object.entries(config?.rules ?? {})
     .filter(([, value]) => {
       const level = Array.isArray(value) ? value[0] : value;
@@ -219,10 +217,7 @@ async function activeRules(
     .map(([name]) => name);
   return {
     rules: new Set(active),
-    project: (
-      config?.languageOptions?.parserOptions as
-        Record<string, unknown> | undefined
-    )?.project,
+    project: fieldOf(config?.languageOptions?.parserOptions, 'project'),
   };
 }
 
@@ -452,8 +447,7 @@ describe('no file kind is given a rule from a plugin that is not loaded', () => 
       if (await eslint.isPathIgnored(filePath)) {
         continue;
       }
-      const config = (await eslint.calculateConfigForFile(filePath)) as
-        Linter.Config | undefined;
+      const config = await configFor(eslint, filePath);
       const plugins = Object.keys(config?.plugins ?? {});
       for (const [rule, value] of Object.entries(config?.rules ?? {})) {
         const level = Array.isArray(value) ? value[0] : value;
@@ -478,18 +472,17 @@ describe('rules adjusted for Prettier, frameworks and tests', () => {
   const ruleOf = async (
     file: string,
     rule: string,
-  ): Promise<unknown[] | undefined> => {
-    const config = (await eslint.calculateConfigForFile(file)) as
-      Linter.Config | undefined;
-    return config?.rules?.[rule] as unknown[] | undefined;
+  ): Promise<Linter.RuleEntry | undefined> => {
+    const config = await configFor(eslint, file);
+    return config?.rules?.[rule];
   };
 
   const severityOf = async (
     file: string,
     rule: string,
-  ): Promise<number | undefined> => {
-    const [severity] = (await ruleOf(file, rule)) ?? [];
-    return severity as number | undefined;
+  ): Promise<Linter.RuleSeverity | undefined> => {
+    const entry = await ruleOf(file, rule);
+    return Array.isArray(entry) ? entry[0] : entry;
   };
 
   test.each([

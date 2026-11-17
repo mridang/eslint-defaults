@@ -148,7 +148,7 @@ describe('toWhitelist', () => {
   });
 
   it('escapes and anchors names that would otherwise read as patterns', () => {
-    const [entry] = toWhitelist(['w-[10px]']);
+    const entry = toWhitelist(['w-[10px]']).at(0);
     const pattern = new RegExp(entry ?? '', 'u');
     expect(entry).toBe(String.raw`^w-\[10px\]$`);
     expect(['w-[10px]', 'w-1x'].filter((name) => pattern.test(name))).toEqual([
@@ -157,7 +157,7 @@ describe('toWhitelist', () => {
   });
 
   it('turns a functional utility into an anchored prefix pattern', () => {
-    const [entry] = toWhitelist(['tab-*']);
+    const entry = toWhitelist(['tab-*']).at(0);
     const pattern = new RegExp(entry ?? '', 'u');
     expect(entry).toBe('^tab-.+$');
     expect(['tab-4', 'xtab-4'].filter((name) => pattern.test(name))).toEqual([

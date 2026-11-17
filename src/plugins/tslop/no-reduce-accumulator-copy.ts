@@ -6,7 +6,12 @@ import {
   isNeverReassigned,
   resolveArrayBinding,
 } from './shared/array-method.js';
-import { defineRule, report, unwrapExpression } from './shared/rule.js';
+import {
+  asEslintNode,
+  defineRule,
+  report,
+  unwrapExpression,
+} from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 import type { Rule, Scope } from 'eslint';
 
@@ -47,7 +52,7 @@ const reducerOfCallback = (
   reducerFunction:
     TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression,
 ): Reducer | null => {
-  const owner = outerOwner(reducerFunction, reducerFunction.parent ?? null);
+  const owner = outerOwner(reducerFunction, reducerFunction.parent);
   if (owner?.type !== AST_NODE_TYPES.CallExpression) {
     return null;
   }
@@ -63,7 +68,7 @@ const reducerOfCallback = (
   if (first === undefined || unwrapExpression(first) !== reducerFunction) {
     return null;
   }
-  const firstParameter = reducerFunction.params[0];
+  const firstParameter = reducerFunction.params.at(0);
   const accumulator =
     firstParameter?.type === AST_NODE_TYPES.AssignmentPattern
       ? firstParameter.left
@@ -205,7 +210,7 @@ export default defineRule({
           return;
         }
         const accumulator = context.sourceCode
-          .getDeclaredVariables(reducer.callback as unknown as Rule.Node)
+          .getDeclaredVariables(asEslintNode(reducer.callback))
           .find((variable) =>
             variable.identifiers.some(
               (identifier) =>

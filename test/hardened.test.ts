@@ -15,6 +15,7 @@ import {
   typescriptTypedRules,
   unicornRuleSettings,
 } from '../src/hardened.js';
+import { configFor, recordOf } from './utils/eslint-config.js';
 
 interface RuleMeta {
   deprecated?: unknown;
@@ -180,7 +181,7 @@ describe('hardened rules that must agree', () => {
   });
 });
 
-const tsPluginRules = (typescriptPlugin.rules ?? {}) as Record<
+const tsPluginRules = typescriptPlugin.rules as Record<
   string,
   { meta?: { deprecated?: unknown } }
 >;
@@ -305,6 +306,61 @@ describe('typescript-eslint options', () => {
     [
       'lets a static method be taken (unbound-method with ignoreStatic)',
       'class Box {\n  static make(): number {\n    return 1;\n  }\n}\nexport const make = Box.make;\n',
+      [],
+    ],
+    [
+      'lets an arrow shorthand return a void call (no-confusing-void-expression)',
+      'declare function handler(x: number): void;\nexport const onClick = (x: number): void => handler(x);\n',
+      [],
+    ],
+    [
+      'reports a void call returned from a block (no-confusing-void-expression)',
+      'declare function handler(): void;\nexport function run(): void {\n  return handler();\n}\n',
+      ['@typescript-eslint/no-confusing-void-expression'],
+    ],
+    [
+      'lets a string fall back with || (prefer-nullish-coalescing)',
+      'export const label = (title: string, url: string): string => title || url;\n',
+      [],
+    ],
+    [
+      'reports || on a number that may be undefined (prefer-nullish-coalescing)',
+      'export const total = (count: number | undefined): number => count || 0;\n',
+      ['@typescript-eslint/prefer-nullish-coalescing'],
+    ],
+    [
+      'reports a shadowed variable (no-shadow)',
+      'export const value = 1;\nexport function read(): number {\n  const value = 2;\n  return value;\n}\n',
+      ['@typescript-eslint/no-shadow'],
+    ],
+    [
+      'lets a variable shadow a const declared later (no-shadow with hoist functions)',
+      'export function read(): number {\n  const value = 2;\n  return value;\n}\nexport const value = 1;\n',
+      [],
+    ],
+    [
+      'reports a variable shadowing a function declared later (no-shadow with hoist functions)',
+      'export function read(): number {\n  const helper = 2;\n  return helper;\n}\nexport function helper(): number {\n  return 1;\n}\n',
+      ['@typescript-eslint/no-shadow'],
+    ],
+    [
+      'reports a cast from unknown (no-unsafe-type-assertion)',
+      'export const text = (value: unknown): string => value as string;\n',
+      ['@typescript-eslint/no-unsafe-type-assertion'],
+    ],
+    [
+      'lets a literal be cast to its wider type (no-unsafe-type-assertion)',
+      "export const text = 'a' as string;\n",
+      [],
+    ],
+    [
+      'reports a condition on a value that is always set (no-unnecessary-condition)',
+      'export const pick = (value: { id: number }): number => (value ? 1 : 2);\n',
+      ['@typescript-eslint/no-unnecessary-condition'],
+    ],
+    [
+      'lets a condition on an optional value through (no-unnecessary-condition)',
+      'export const pick = (value: { id: number } | undefined): number =>\n  value ? 1 : 2;\n',
       [],
     ],
   ])('%s', async (_name, code, expected) => {
@@ -477,18 +533,26 @@ describe('gitignore', () => {
       script,
       "import { createRequire } from 'node:module';\nconst [, , project, preset, ...files] = process.argv;\nconst { ESLint } = createRequire(project)('eslint');\nconst { default: defaults } = await import(preset);\nconst eslint = new ESLint({ cwd: process.cwd(), overrideConfigFile: true, overrideConfig: defaults.configs.recommended });\nconst answers = await Promise.all(files.map(async (file) => [file, await eslint.isPathIgnored(file)]));\nconsole.log(JSON.stringify(Object.fromEntries(answers)));\n",
     );
-    return JSON.parse(
-      execFileSync(
-        process.execPath,
-        [
-          script,
-          path.join(process.cwd(), 'package.json'),
-          pathToFileURL(path.join(process.cwd(), 'dist/index.js')).href,
-          ...files,
-        ],
-        { cwd, encoding: 'utf8' },
+    const answers = recordOf(
+      JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            script,
+            path.join(process.cwd(), 'package.json'),
+            pathToFileURL(path.join(process.cwd(), 'dist/index.js')).href,
+            ...files,
+          ],
+          { cwd, encoding: 'utf8' },
+        ),
       ),
-    ) as Record<string, boolean>;
+    );
+    return Object.fromEntries(
+      Object.entries(answers).map(([file, ignored]) => [
+        file,
+        ignored === true,
+      ]),
+    );
   };
 
   it('ignores what the .gitignore of the directory lists', () => {
@@ -552,19 +616,29 @@ const lintProject = (
       script,
       "import { createRequire } from 'node:module';\nconst [, , project, preset, field, ...files] = process.argv;\nconst { ESLint } = createRequire(project)('eslint');\nconst { default: defaults } = await import(preset);\nconst eslint = new ESLint({ cwd: process.cwd(), overrideConfigFile: true, overrideConfig: defaults.configs.recommended });\nconst results = await eslint.lintFiles(files);\nconsole.log(JSON.stringify(Object.fromEntries(results.map((result) => [result.filePath.slice(process.cwd().length + 1), result.messages.map((message) => message[field])]))));\n",
     );
-    return JSON.parse(
-      execFileSync(
-        process.execPath,
-        [
-          script,
-          path.join(process.cwd(), 'package.json'),
-          pathToFileURL(path.join(process.cwd(), 'dist/index.js')).href,
-          field,
-          ...targets,
-        ],
-        { cwd: dir, encoding: 'utf8' },
+    const answers = recordOf(
+      JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            script,
+            path.join(process.cwd(), 'package.json'),
+            pathToFileURL(path.join(process.cwd(), 'dist/index.js')).href,
+            field,
+            ...targets,
+          ],
+          { cwd: dir, encoding: 'utf8' },
+        ),
       ),
-    ) as Record<string, string[]>;
+    );
+    return Object.fromEntries(
+      Object.entries(answers).map(([file, ids]) => [
+        file,
+        Array.isArray(ids)
+          ? ids.filter((id): id is string => typeof id === 'string')
+          : [],
+      ]),
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -893,10 +967,8 @@ describe('rules that contradict each other or their own fixers', () => {
 
   it('turns react/self-closing-comp off for Astro files', async () => {
     const eslint = new ESLint({ cwd: process.cwd() });
-    const config = (await eslint.calculateConfigForFile(
-      'src/pages/index.astro',
-    )) as { rules: Record<string, unknown> };
-    expect(config.rules['react/self-closing-comp']).toEqual([0]);
+    const config = await configFor(eslint, 'src/pages/index.astro');
+    expect(config?.rules?.['react/self-closing-comp']).toEqual([0]);
   });
 });
 

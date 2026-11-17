@@ -18,6 +18,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fieldOf } from '../../utilities.js';
 import type { Rule } from 'eslint';
 
 /** A node of the JSONC parser that package.json is linted with. */
@@ -31,10 +32,12 @@ interface JsonNode {
   body?: JsonNode[];
 }
 
-/** The literal a JSON property holds, e.g. the range string of `engines.node`. */
-interface JsonLiteral {
-  value?: string;
-}
+/** True for a node of the JSON parser. */
+const isJsonNode = (value: unknown): value is JsonNode =>
+  typeof value === 'object' &&
+  value !== null &&
+  'type' in value &&
+  typeof value.type === 'string';
 
 const keyOf = (node: JsonNode): string =>
   node.key?.value ?? node.key?.name ?? '';
@@ -55,6 +58,7 @@ function read(file: string): string | undefined {
 }
 
 function devboxNodeMajor(text: string): string | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- JSON.parse returns any; devbox.json is read for its packages only and anything else is ignored
   const { packages } = JSON.parse(text) as {
     packages?: string[] | Record<string, string>;
   };
@@ -129,7 +133,10 @@ const rule: Rule.RuleModule = {
     return {
       /* eslint-disable sonarjs/function-name -- ESLint visitor keys are the AST node type names, fixed by the ESLint API */
       Program(raw: unknown) {
-        const program = raw as JsonNode;
+        if (!isJsonNode(raw)) {
+          return;
+        }
+        const program = raw;
         const nvmrc = MAJOR.exec(read(path.join(dir, '.nvmrc')) ?? '')?.[1];
         const devboxText = read(path.join(dir, 'devbox.json'));
         const devbox = devboxText ? devboxNodeMajor(devboxText) : undefined;
@@ -141,7 +148,7 @@ const rule: Rule.RuleModule = {
         const top = program.body?.[0]?.expression;
         const engines = propertyOf(top, 'engines')?.value;
         const node = propertyOf(engines, 'node');
-        const range = String((node?.value as JsonLiteral | undefined)?.value);
+        const range = String(fieldOf(node?.value, 'value'));
         pins
           .flatMap(({ source, major }) => {
             if (!node) {

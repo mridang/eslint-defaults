@@ -20,6 +20,13 @@ interface JsonNode {
   properties?: JsonNode[];
 }
 
+/** True for a node of the JSON parser. */
+const isJsonNode = (value: unknown): value is JsonNode =>
+  typeof value === 'object' &&
+  value !== null &&
+  'type' in value &&
+  typeof value.type === 'string';
+
 const keyOf = (node: JsonNode): string =>
   node.key?.value ?? node.key?.name ?? '';
 
@@ -40,7 +47,10 @@ const rule: Rule.RuleModule = {
     return {
       /* eslint-disable sonarjs/function-name -- ESLint visitor keys are the AST node type names, fixed by the ESLint API */
       JSONProperty(raw: unknown) {
-        const node = raw as JsonNode;
+        if (!isJsonNode(raw)) {
+          return;
+        }
+        const node = raw;
         if (
           keyOf(node) !== 'dependencies' ||
           node.parent?.parent?.type !== 'JSONExpressionStatement' ||

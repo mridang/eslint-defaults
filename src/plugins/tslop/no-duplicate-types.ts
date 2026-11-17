@@ -1,5 +1,5 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
-import { defineRule, report } from './shared/rule.js';
+import { defineRule, report, ruleOptions } from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 
 /**
@@ -54,7 +54,7 @@ const isNumeric = (value: unknown): boolean =>
 
 const isNegatedNumber = (
   node: TSESTree.TSLiteralType['literal'],
-): node is TSESTree.UnaryExpressionMinus =>
+): node is TSESTree.UnaryExpressionMinus & { argument: TSESTree.Literal } =>
   node.type === AST_NODE_TYPES.UnaryExpression &&
   node.operator === '-' &&
   node.argument.type === AST_NODE_TYPES.Literal &&
@@ -74,7 +74,7 @@ const literal = (node: TSESTree.TSLiteralType): string | null => {
     }
   }
   if (isNegatedNumber(value)) {
-    const operand = (value.argument as TSESTree.Literal).value;
+    const operand = value.argument.value;
     return `-${String(operand)}${typeof operand === 'bigint' ? 'n' : ''}`;
   }
   return null;
@@ -241,10 +241,9 @@ export default defineRule({
     },
   },
   create(context) {
-    const options = (context.options[0] ?? {}) as {
-      message?: string;
-      minProperties?: number;
-    };
+    const options = ruleOptions<{ message: string; minProperties: number }>(
+      context,
+    );
     const filename = context.filename;
     const inspect = (node: Declaration): void => {
       const print = fingerprint(node);

@@ -5,6 +5,7 @@ import {
   nodesWithin,
   report,
   resolveVariable,
+  ruleOptions,
   visitorKeys,
 } from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
@@ -296,9 +297,7 @@ const constInitializer = (
   ) {
     return null;
   }
-  const isConst =
-    declarator.parent.type === AST_NODE_TYPES.VariableDeclaration &&
-    declarator.parent.kind === 'const';
+  const isConst = declarator.parent.kind === 'const';
   return isConst && declarator.id.type === AST_NODE_TYPES.Identifier
     ? declarator.init
     : null;
@@ -400,7 +399,6 @@ const isConstDeclarator = (
   node: TSESTree.Node,
 ): node is TSESTree.VariableDeclarator =>
   node.type === AST_NODE_TYPES.VariableDeclarator &&
-  node.parent.type === AST_NODE_TYPES.VariableDeclaration &&
   node.parent.kind === 'const';
 
 const isAlias = (node: TSESTree.Node): node is Alias =>
@@ -432,10 +430,7 @@ const exportedIdentifiers = (node: TSESTree.Node): TSESTree.Identifier[] => {
   const listed =
     node.source === null
       ? node.specifiers.flatMap((specifier) =>
-          specifier.exportKind !== 'type' &&
-          specifier.local.type === AST_NODE_TYPES.Identifier
-            ? [specifier.local]
-            : [],
+          specifier.exportKind === 'type' ? [] : [specifier.local],
         )
       : [];
   return [...declared, ...listed];
@@ -477,7 +472,7 @@ export default defineRule({
     },
   },
   create(context) {
-    const options = (context.options[0] ?? {}) as Options;
+    const options = ruleOptions<Options>(context);
 
     return {
       'Program:exit'(program: TSESTree.Program) {
