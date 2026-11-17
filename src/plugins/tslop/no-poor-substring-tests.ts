@@ -142,7 +142,7 @@ const isImportedConstantString = (
     path.resolve(directory, source, 'index.js'),
   ];
   const pattern = new RegExp(
-    String.raw`export\s+const\s+${escapeRegExp(importedName)}\s*=\s*(["'\`])`,
+    String.raw`export\s+const\s+${escapeRegExp(importedName)}\s*=\s*(["'\x60])`,
     'u',
   );
   return candidates.some((candidate) => {

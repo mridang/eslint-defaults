@@ -233,6 +233,8 @@ const LIBRARIES: HardenedLibrary[] = [
         'Ported, enabled later: thousands of findings across the repositories, and each needs a written safety comment, so it is a project of its own.',
       'no-unknown-parameters':
         'Ported, enabled later: about 480 findings across the repositories. The rule is narrowed so it no longer conflicts with @typescript-eslint/use-unknown-in-catch-callback-variable.',
+      'no-reexports-outside-entrypoints':
+        'Ported, enabled later: contradicts unicorn/prefer-export-from, which is on: a renamed re-export of an imported name (export { X as Y }) is reported by one rule when written as a const and by the other when written as a re-export, so it cannot satisfy both.',
       'no-reflect-apply':
         'Ported, enabled later: contradicts unicorn/prefer-reflect-apply, and no narrowing of the rule removes the conflict.',
       'max-boolean-conditions':

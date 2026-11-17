@@ -19,7 +19,10 @@ import type {
  * - `pluralSuffix`: a template literal that ends a word and then interpolates
  *   `cond ? '' : 's'` (or `'es'`, or the mirrored form), whatever the test is.
  * - `pluralWords`: a conditional between two string literals where one is the
- *   other plus `s` or `es`, such as `n === 1 ? 'item' : 'items'`.
+ *   other plus `s` or `es`, and the test looks like a count (a comparison with
+ *   0 or 1, a `.length` or `.size` read, or a name such as `count`, `total`,
+ *   `n`, `single` or `plural`), such as `n === 1 ? 'item' : 'items'`. Other
+ *   tests, such as `secure ? 'https' : 'http'`, are not about a count.
  * - `relativeTimeText`: a string or template that holds a number or a
  *   placeholder, a time unit and `ago` (`${n} days ago`, `3 hours ago`,
  *   `in ${n} minutes`), a unit-and-`ago` tail joined to a number
@@ -142,6 +145,45 @@ function isSlice(node: Node | undefined): node is SimpleCallExpression {
   const [first] = node.arguments;
   return first?.type === 'Literal' && first.value === 0;
 }
+
+/** Names that say a value is a count, or a flag about one. */
+const COUNT_NAME =
+  /^(?:n|num|one|single|plural|many|multiple)$|(?:count|total|number|length|size|amount|quantity)$/iu;
+
+/** Whether the test of a conditional is about how many of something there are. */
+const looksLikeCount = (node: Node): boolean => {
+  switch (node.type) {
+    case 'Identifier': {
+      return COUNT_NAME.test(node.name);
+    }
+    case 'MemberExpression': {
+      return (
+        !node.computed &&
+        node.property.type === 'Identifier' &&
+        COUNT_NAME.test(node.property.name)
+      );
+    }
+    case 'BinaryExpression': {
+      const isBound = (side: Node): boolean =>
+        side.type === 'Literal' && (side.value === 0 || side.value === 1);
+      return (
+        isBound(node.left) ||
+        isBound(node.right) ||
+        looksLikeCount(node.left) ||
+        looksLikeCount(node.right)
+      );
+    }
+    case 'UnaryExpression': {
+      return node.operator === '!' && looksLikeCount(node.argument);
+    }
+    case 'LogicalExpression': {
+      return looksLikeCount(node.left) || looksLikeCount(node.right);
+    }
+    default: {
+      return false;
+    }
+  }
+};
 
 const rule: Rule.RuleModule = {
   meta: {
@@ -305,6 +347,9 @@ const rule: Rule.RuleModule = {
       },
 
       ConditionalExpression(node) {
+        if (!looksLikeCount(node.test)) {
+          return;
+        }
         const a = stringValue(node.consequent);
         const b = stringValue(node.alternate);
         if (a === undefined || b === undefined) {

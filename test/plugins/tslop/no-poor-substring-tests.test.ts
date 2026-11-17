@@ -1,5 +1,11 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import tsParser from '@typescript-eslint/parser';
 import { describe, expect, it } from '@jest/globals';
+import { Linter } from 'eslint';
 
+import { rules } from '../../../src/plugins/tslop/index.js';
 import { lintWith } from '../../utils/tslop.js';
 
 const lint = (code: string): (string | undefined)[] =>
@@ -50,5 +56,47 @@ describe('tslop/no-poor-substring-tests', () => {
     ['array toContain', 'expect([1, 2]).toContain(1);'],
   ])('accepts %s', (_name, code) => {
     expect(lint(code)).toEqual([]);
+  });
+});
+
+describe('tslop/no-poor-substring-tests with an imported constant', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'substring-'));
+  writeFileSync(
+    path.join(directory, 'constants.ts'),
+    'export const QUOTED = "abc";\nexport const TICKED = `abc`;\nexport const NUMBER = 3;\n',
+  );
+  const lintInDirectory = (code: string): (string | undefined)[] =>
+    new Linter({ cwd: directory })
+      .verify(
+        code,
+        [
+          {
+            files: ['**/*.ts'],
+            languageOptions: { parser: tsParser },
+            plugins: { tslop: { rules } },
+            rules: { 'tslop/no-poor-substring-tests': 'error' },
+          },
+        ],
+        path.join(directory, 'constants.test.ts'),
+      )
+      .map((message) => message.messageId ?? `fatal: ${message.message}`);
+
+  it.each(['QUOTED', 'TICKED'])(
+    'reads the file of %s without crashing and reports the substring test',
+    (name) => {
+      expect(
+        lintInDirectory(
+          `import { ${name} } from "./constants.js";\nexpect(${name}).toContain("a");`,
+        ),
+      ).toEqual(['poorSubstringTest']);
+    },
+  );
+
+  it('does not report a constant that is not a string', () => {
+    expect(
+      lintInDirectory(
+        'import { NUMBER } from "./constants.js";\nexpect(NUMBER).toContain("a");',
+      ),
+    ).toEqual([]);
   });
 });

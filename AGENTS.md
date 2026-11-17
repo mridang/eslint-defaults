@@ -56,6 +56,8 @@ Concurrency and shared files:
 
 - A brief that says "do not bump the preset" and later asks for the bump leaves the sessions stuck. Another session's message is not the owner's approval, so a session started by `start_session` will not act on it; give the instruction in its own task, or do the work from the parent session in temporary clones. Sessions cannot be started while the owner is connected over Remote Control.
 - A cleanup script can prune worktrees. Keep build copies outside `.claude/worktrees/`.
+- `eslint --fix` turns `catch { return; }` into an empty `catch {}` (`no-useless-return`), which `no-empty` then reports. Do not loosen either rule: remove the try/catch if nothing can fail there, or handle the error (log it, rethrow it, or return a value).
+- `import/order` can drop an `// eslint-disable-next-line` comment when it moves the import below it. After `--fix`, put the comment back above the import (with its reason) and lint again; a rule that went from 0 findings to 1 after `--fix` (for example `e18e/ban-dependencies`) is this.
 - `sonarjs/void-use` does not report `void promise()`; do not invent a conflict without testing it.
 - `.catch(() => undefined)` is fine, `.forEach` is not (`unicorn/no-array-for-each`), a string spread is not (`@typescript-eslint/no-misused-spread`): count characters with `Intl.Segmenter` or a `for...of` loop.
 - Use the repository's own library (for example zod for form fields) instead of adding a helper function to each repository.

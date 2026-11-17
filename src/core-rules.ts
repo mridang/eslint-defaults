@@ -49,7 +49,6 @@ export const coreRuleSettings: Linter.RulesRecord = {
   // A constructor that returns a value breaks new.
   'no-constructor-return': 'error',
   // /=/ at the start of a regex reads as a division assignment.
-  'no-div-regex': 'error',
   // Two imports of one module; separate type imports are allowed.
   'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
   // No else after a return.
@@ -252,8 +251,6 @@ export const importRuleSettings: Linter.RulesRecord = {
   'import/no-named-as-default-member': 'error',
   // No AMD require and define.
   'import/no-amd': 'error',
-  // One import line per module.
-  'import/no-duplicates': 'error',
   // No absolute paths in imports.
   'import/no-absolute-path': 'error',
   // No loader! in imports.
@@ -382,6 +379,10 @@ export const reactRuleSettings: Linter.RulesRecord = {
 
 /** The ultracite rules left off, with the reason. Each names a rule of an installed plugin. */
 export const coreExclusions = {
+  'import/no-duplicates':
+    'Its fixer collides with import/consistent-type-specifier-style (prefer top-level) on an import that mixes inline type specifiers and values, and writes a file that does not parse (a merged import that starts with a comma and loses its opening brace). The core no-duplicate-imports already reports every duplicate import, without a fixer.',
+  'no-div-regex':
+    'Style rule whose fixer collides with a bug-finding rule: it rewrites /=x/ as /[=]x/, which sonarjs/single-char-in-character-classes then reports, and that fixer would undo it. A regex that starts with = is fine as written.',
   'no-await-in-loop':
     'functional/no-loop-statements already makes every loop justify itself, and a sequential await in a loop (order matters) would otherwise need two suppressions for one reason.',
   'no-magic-numbers':

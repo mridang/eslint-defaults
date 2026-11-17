@@ -673,3 +673,57 @@ describe('tslop through the preset', () => {
     ).not.toContain('tslop/no-runtime-typeof');
   });
 });
+
+/** Applies every fix of the full preset to a snippet, as `eslint --fix` does, without type information. */
+const fixText = async (
+  text: string,
+  filePath: string,
+): Promise<{ output: string; ruleIds: string[]; fatal: boolean }> => {
+  const eslint = new ESLint({
+    cwd: process.cwd(),
+    fix: true,
+    overrideConfig: [UNTYPED_PARSER],
+  });
+  const [result] = await eslint.lintText(text, { filePath });
+  return {
+    output: result.output ?? text,
+    ruleIds: result.messages.map((message) => message.ruleId ?? ''),
+    fatal: result.messages.some((message) => message.fatal),
+  };
+};
+
+/** A line that starts with a comma: what a broken import merge leaves behind. */
+const LEADING_COMMA = /^,/mu;
+
+describe('fixers that must not collide', () => {
+  const mixedImports =
+    "import {\n  type Thing,\n  FIRST,\n  type Other,\n} from './constants.js';\nimport { second, type More } from './constants.js';\n\nexport const all = [FIRST, second];\nexport type Alias = Thing | Other | More;\n";
+
+  it('leaves a file with mixed inline-type and value imports of one module parsing, and a second fix changes nothing', async () => {
+    const first = await fixText(mixedImports, 'src/example/imports.ts');
+    expect(first.fatal).toBe(false);
+    expect(first.output).not.toMatch(LEADING_COMMA);
+    const second = await fixText(first.output, 'src/example/imports.ts');
+    expect(second.fatal).toBe(false);
+    expect(second.output).toBe(first.output);
+  });
+
+  it('leaves the duplicate import for the author and reports it', async () => {
+    const { output, ruleIds } = await fixText(
+      mixedImports,
+      'src/example/imports.ts',
+    );
+    expect(output.match(/from '\.\/constants\.js'/gu)).toHaveLength(4);
+    expect(ruleIds).toContain('no-duplicate-imports');
+  });
+
+  it('lints a regex that starts with = clean, and a second fix changes nothing', async () => {
+    const code = 'export const padding = /={1,2}$/u;\n';
+    const first = await fixText(code, 'src/example/padding.ts');
+    expect(first.ruleIds).not.toContain('no-div-regex');
+    expect(first.ruleIds).not.toContain(
+      'sonarjs/single-char-in-character-classes',
+    );
+    expect(first.output).toBe(code);
+  });
+});

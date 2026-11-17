@@ -189,6 +189,8 @@ const reactRuleBase: Linter.RulesRecord = {
   ),
   ...unicornRuleSettings,
   'react/prop-types': 'off',
+  // The import plugin's recommended set turns this on; see coreExclusions for why it stays off.
+  'import/no-duplicates': 'off',
 };
 /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- end of the untyped plugin values */
 const tsRules: Linter.RulesRecord = {
