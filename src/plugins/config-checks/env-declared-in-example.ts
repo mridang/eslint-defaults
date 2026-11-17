@@ -65,16 +65,16 @@ type AnyNode = Node & {
 };
 
 interface KeyedNode {
-  key: Node;
+  key: Node | undefined;
   computed: boolean;
 }
 
 /** The name a member or property key spells, when it is a plain name or string. */
 function keyName({ key, computed }: KeyedNode): string | undefined {
   if (!computed) {
-    return (key as AnyNode).name;
+    return key?.type === 'Identifier' ? key.name : undefined;
   }
-  return key.type === 'Literal' && typeof key.value === 'string'
+  return key?.type === 'Literal' && typeof key.value === 'string'
     ? key.value
     : undefined;
 }
@@ -87,7 +87,7 @@ function isProcessEnv(node: AnyNode | null | undefined): boolean {
   if (node?.type !== 'MemberExpression' || node.computed) {
     return false;
   }
-  return isProcess(node.object) && node.property?.name === 'env';
+  return isProcess(node.object) && node.property.name === 'env';
 }
 
 const rule: Rule.RuleModule = {
@@ -122,7 +122,7 @@ const rule: Rule.RuleModule = {
           check(
             node,
             keyName({
-              key: node.property as Node,
+              key: node.property,
               computed: Boolean(node.computed),
             }),
           );

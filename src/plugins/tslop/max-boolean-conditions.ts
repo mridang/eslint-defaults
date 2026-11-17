@@ -1,5 +1,10 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
-import { defineRule, report } from './shared/rule.js';
+import {
+  asEslintNode,
+  defineRule,
+  report,
+  ruleOptions,
+} from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 import type { Rule } from 'eslint';
 
@@ -26,8 +31,8 @@ const countTerms = (
   const grouped =
     respectGroups &&
     !isRoot &&
-    sourceCode.getTokenBefore(term as unknown as Rule.Node)?.value === '(' &&
-    sourceCode.getTokenAfter(term as unknown as Rule.Node)?.value === ')';
+    sourceCode.getTokenBefore(asEslintNode(term))?.value === '(' &&
+    sourceCode.getTokenAfter(asEslintNode(term))?.value === ')';
   if (
     term.type === AST_NODE_TYPES.LogicalExpression &&
     term.operator !== '??' &&
@@ -63,10 +68,9 @@ export default defineRule({
     },
   },
   create(context) {
-    const options = (context.options[0] ?? {}) as {
-      maxConditions?: number;
-      message?: string;
-    };
+    const options = ruleOptions<{ maxConditions: number; message: string }>(
+      context,
+    );
     const max = options.maxConditions ?? 3;
     const check = (node: { test: TSESTree.Expression | null }): void => {
       if (node.test === null) {
@@ -84,7 +88,7 @@ export default defineRule({
         report(context, node.test, 'tooManyConditions', { count, max });
       } else {
         context.report({
-          node: node.test as unknown as Rule.Node,
+          node: asEslintNode(node.test),
           message: options.message,
         });
       }

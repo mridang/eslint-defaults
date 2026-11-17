@@ -700,8 +700,6 @@ function classifyAliasBroadTarget(
   );
 }
 
-export function isKnownEvidenceExpression(
-  expression: TSESTree.Expression,
-): boolean {
+export function isKnownEvidenceExpression(expression: TSESTree.Node): boolean {
   return KNOWN_EVIDENCE_TYPES.has(unwrapExpression(expression).type);
 }

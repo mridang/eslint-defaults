@@ -1,7 +1,7 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
-import { defineRule } from './shared/rule.js';
+import { asEslintNode, asTypeScript, defineRule } from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
-import type { Rule, Scope } from 'eslint';
+import type { Scope } from 'eslint';
 
 /**
  * `tslop/no-renamed-imports`: no `import { a as b }` when `a` is free.
@@ -162,7 +162,7 @@ export default defineRule({
           return;
         }
         context.report({
-          node: node as unknown as Rule.Node,
+          node: asEslintNode(node),
           messageId: 'unnecessaryAlias',
           data: { importedName: name, localName },
           fix(fixer) {
@@ -177,10 +177,7 @@ export default defineRule({
               references.some(
                 (reference) =>
                   isShadowedAt(reference, name, moduleScope) ||
-                  isIntrinsicJsxTag(
-                    reference.identifier as unknown as TSESTree.Node,
-                    name,
-                  ),
+                  isIntrinsicJsxTag(asTypeScript(reference.identifier), name),
               );
             if (blocked) {
               return null;
@@ -194,7 +191,7 @@ export default defineRule({
                 fixer.replaceText(
                   reference.identifier,
                   replacement(
-                    reference.identifier as unknown as TSESTree.Node,
+                    asTypeScript(reference.identifier),
                     localName,
                     name,
                   ),

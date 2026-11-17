@@ -201,7 +201,7 @@ export function extractClassNames(css: string): Set<string> {
     } else if (!text.startsWith('@') || SELECTOR_AT_RULES.test(text)) {
       const selector = removeBracketGroups(text);
       for (const match of selector.matchAll(CLASS_SELECTOR)) {
-        names.add(unescapeIdentifier(match[1] ?? ''));
+        names.add(unescapeIdentifier(match.at(1) ?? ''));
       }
     } else {
       // An at-rule whose prelude holds no selectors.

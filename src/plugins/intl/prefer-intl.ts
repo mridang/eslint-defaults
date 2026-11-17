@@ -142,7 +142,7 @@ function isSlice(node: Node | undefined): node is SimpleCallExpression {
   if (!isMethodCall(node) || !SLICERS.has(methodName(node))) {
     return false;
   }
-  const [first] = node.arguments;
+  const first = node.arguments.at(0);
   return first?.type === 'Literal' && first.value === 0;
 }
 

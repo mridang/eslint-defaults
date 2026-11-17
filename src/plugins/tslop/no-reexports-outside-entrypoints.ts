@@ -1,7 +1,12 @@
 import path from 'node:path';
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
 
-import { defineRule, report, resolveVariable } from './shared/rule.js';
+import {
+  defineRule,
+  report,
+  resolveVariable,
+  ruleOptions,
+} from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 import type { Rule } from 'eslint';
 
@@ -96,7 +101,7 @@ export default defineRule({
     },
   },
   create(context: Rule.RuleContext) {
-    const options = (context.options[0] ?? {}) as { entrypoints?: string[] };
+    const options = ruleOptions<{ entrypoints: string[] }>(context);
     const relativeName = path
       .relative(context.cwd, context.filename)
       .replaceAll('\\', '/');

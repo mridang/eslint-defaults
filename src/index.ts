@@ -63,20 +63,26 @@ import {
   filesGlobs,
   blockGlobs,
 } from './languages.js';
-import { normalizeConfig, normalizeConfigArray } from './utilities.js';
+import {
+  definedRules,
+  normalizeConfig,
+  normalizeConfigArray,
+  stringField,
+} from './utilities.js';
 import type { ESLint, Linter } from 'eslint';
 
-const prettierRules = (normalizeConfig(prettierPlugin.configs?.recommended)
-  .rules ?? {}) as Linter.RulesRecord;
-const cssRecommended = normalizeConfig(cssPlugin.configs?.recommended);
+const prettierRules = definedRules(
+  normalizeConfig(prettierPlugin.configs?.recommended).rules,
+);
+const cssRecommended = normalizeConfig(cssPlugin.configs.recommended);
 const htmlRecommendedArray = normalizeConfigArray(
-  htmlEslintPlugin.configs?.['flat/recommended'],
+  htmlEslintPlugin.configs['flat/recommended'],
 );
 const markdownRecommended = normalizeConfigArray(
-  markdownPlugin.configs?.recommended,
+  markdownPlugin.configs.recommended,
 );
 const markdownProcessor = normalizeConfigArray(
-  markdownPlugin.configs?.processor,
+  markdownPlugin.configs.processor,
 );
 /** The HTML plugin's config for HTML files, with our parser on its last entry. */
 const htmlRecommended: Linter.Config[] = (
@@ -94,13 +100,8 @@ const htmlRecommended: Linter.Config[] = (
 );
 const loadJson = createRequire(import.meta.url);
 const requirePlugin = loadJson;
-const packageJson = loadJson('../package.json') as {
-  name: string;
-  version: string;
-};
-const jsonRecommended = normalizeConfig(
-  jsonLanguagePlugin.configs?.recommended,
-);
+const packageJson: unknown = loadJson('../package.json');
+const jsonRecommended = normalizeConfig(jsonLanguagePlugin.configs.recommended);
 const makeJsonConfig = (
   files: string | string[],
   language: 'json/json' | 'json/jsonc' | 'json/json5',
@@ -161,12 +162,11 @@ const reactPlugins = {
   prettier: prettierPlugin,
   ...(tailwind.plugin ? { tailwindcss: tailwind.plugin } : {}),
   'testing-library': testingLibraryPlugin,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- eslint-plugin-react types its rules for its own rule API, which ESLint.Plugin does not accept
   react: fixupPluginRules(reactPlugin as unknown as ESLint.Plugin),
   'react-hooks': reactHooksPlugin,
-  /* eslint-disable @typescript-eslint/no-unsafe-argument -- the plugin ships no types, so its value is any */
   'jsx-a11y': fixupPluginRules(jsxA11yPlugin),
   import: fixupPluginRules(importPlugin),
-  /* eslint-enable @typescript-eslint/no-unsafe-argument -- end of the untyped plugin values */
   perfectionist: perfectionistPlugin,
   unicorn: unicornPlugin,
 };
@@ -174,7 +174,6 @@ const tsPlugins = {
   ...reactPlugins,
   '@typescript-eslint': typescriptPlugin,
 };
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- the plugin ships no types, so its value is any */
 const reactRuleBase: Linter.RulesRecord = {
   ...jsPlugin.configs.recommended.rules,
   ...tailwind.rules,
@@ -193,7 +192,6 @@ const reactRuleBase: Linter.RulesRecord = {
   // The import plugin's recommended set turns this on; see coreExclusions for why it stays off.
   'import/no-duplicates': 'off',
 };
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- end of the untyped plugin values */
 const tsRules: Linter.RulesRecord = {
   ...reactRuleBase,
   ...typescriptPlugin.configs.recommended.rules,
@@ -237,7 +235,7 @@ const untypedOnly: Linter.RulesRecord = Object.fromEntries(
  * @returns The same entries, each limited to those files.
  */
 function limitedTo(configs: unknown, files: string[]): Linter.Config[] {
-  return (configs as Linter.Config[]).map((entry) => ({
+  return normalizeConfigArray(configs).map((entry) => ({
     ...entry,
     files: entry.files ?? files,
   }));
@@ -593,7 +591,7 @@ const recommended: Linter.Config[] = [
   },
   ...tomlPlugin.configs['flat/standard'],
   // The plugin types its configs as unknown; its recommended one is a flat config array.
-  ...(dotenvPlugin.configs.recommended as Linter.Config[]),
+  ...normalizeConfigArray(dotenvPlugin.configs.recommended),
   ...htmlRecommended,
   {
     // Layout rules that contradict the Prettier output for HTML.
@@ -662,8 +660,8 @@ const recommended: Linter.Config[] = [
 
 const config: ESLint.Plugin = {
   meta: {
-    name: packageJson.name,
-    version: packageJson.version,
+    name: stringField(packageJson, 'name'),
+    version: stringField(packageJson, 'version'),
   },
   rules: {},
   configs: {

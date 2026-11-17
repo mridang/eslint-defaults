@@ -64,10 +64,18 @@ type AnyNode = Node & {
   name?: string;
 };
 
+/** A node read through the properties only some node kinds have. */
+function asAnyNode(node: Node): AnyNode {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- AnyNode only adds optional properties that some ESTree node kinds have and the Node union does not declare
+  return node as AnyNode;
+}
+
 function unwrap(node: AnyNode): AnyNode {
-  return node.type === ('TSNonNullExpression' as string) ||
-    node.type === ('TSAsExpression' as string)
-    ? unwrap(node.expression as AnyNode)
+  const inner = node.expression;
+  return inner !== undefined &&
+    (node.type === ('TSNonNullExpression' as string) ||
+      node.type === ('TSAsExpression' as string))
+    ? unwrap(asAnyNode(inner))
     : node;
 }
 
@@ -101,6 +109,7 @@ const rule: Rule.RuleModule = {
     },
   },
   create(context) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- parserServices is typed any; it is the TypeScript parser's services, or empty with another parser
     const services = context.sourceCode.parserServices as Services | undefined;
     const checker = services?.program?.getTypeChecker();
 
@@ -112,6 +121,7 @@ const rule: Rule.RuleModule = {
       }
       const variable = scope.set.get(name);
       if (variable) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- eslint types a definition's node as any; a variable declarator has an init
         return (variable.defs[0]?.node as { init?: AnyNode } | undefined)?.init;
       }
       return lookup(scope.upper, name);
@@ -143,22 +153,21 @@ const rule: Rule.RuleModule = {
     }
 
     function isConverted(node: AnyNode): boolean {
-      const parent = node.parent as
-        (Node & { callee?: AnyNode; operator?: string }) | undefined;
+      const { parent } = node;
       return (
         (parent?.type === 'CallExpression' &&
           ['Number', 'parseInt', 'parseFloat', 'String'].includes(
-            parent.callee?.name ?? '',
+            asAnyNode(parent.callee).name ?? '',
           )) ||
         (parent?.type === 'UnaryExpression' && parent.operator === '+')
       );
     }
 
     function check(node: Node, operands: Node[]): void {
-      if (isConverted(node as AnyNode)) {
+      if (isConverted(asAnyNode(node))) {
         return;
       }
-      if (!operands.some((operand) => isConfig(operand as AnyNode))) {
+      if (!operands.some((operand) => isConfig(asAnyNode(operand)))) {
         return;
       }
       const hasType = Boolean(checker);

@@ -9,12 +9,8 @@ import promisePlugin from 'eslint-plugin-promise';
 import sonarjsPlugin from 'eslint-plugin-sonarjs';
 import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import tslopPlugin from './plugins/tslop/index.js';
+import { fieldOf } from './utilities.js';
 import type { ESLint, Linter } from 'eslint';
-
-interface RuleMeta {
-  deprecated?: unknown;
-  docs?: { requiresTypeChecking?: boolean };
-}
 
 interface HardenedLibrary {
   namespace: string;
@@ -326,6 +322,17 @@ export const functionalTypedRuleSettings: Linter.RulesRecord = {
 };
 
 /**
+ * Whether a rule needs type information, which its metadata says.
+ * @param rule - The rule definition of a plugin.
+ * @returns True when the rule cannot run without a TypeScript project.
+ */
+function needsTypes(rule: unknown): boolean {
+  return Boolean(
+    fieldOf(fieldOf(fieldOf(rule, 'meta'), 'docs'), 'requiresTypeChecking'),
+  );
+}
+
+/**
  * Turns on, as errors, every rule of the library that is neither deprecated
  * nor excluded. New rules shipped by a plugin are therefore on by default.
  * @param library - The plugin and the rules to leave off.
@@ -333,17 +340,18 @@ export const functionalTypedRuleSettings: Linter.RulesRecord = {
  */
 function rulesOf(library: HardenedLibrary): HardenedRules {
   const live = Object.entries(library.plugin.rules ?? {})
-    .map(([name, rule]) => ({ name, meta: (rule as { meta?: RuleMeta }).meta }))
+    .map(([name, rule]) => ({
+      name,
+      deprecated: Boolean(fieldOf(fieldOf(rule, 'meta'), 'deprecated')),
+      needsTypes: needsTypes(rule),
+    }))
     .filter(
-      ({ name, meta }) => !meta?.deprecated && !(name in library.excluded),
+      ({ name, deprecated }) => !deprecated && !(name in library.excluded),
     );
-  const errorsFor = (needsTypes: boolean): Linter.RulesRecord =>
+  const errorsFor = (typed: boolean): Linter.RulesRecord =>
     Object.fromEntries(
       live
-        .filter(
-          ({ meta }) =>
-            Boolean(meta?.docs?.requiresTypeChecking) === needsTypes,
-        )
+        .filter((rule) => rule.needsTypes === typed)
         .map(({ name }) => [`${library.namespace}/${name}`, 'error' as const]),
     );
   return { untyped: errorsFor(false), typed: errorsFor(true) };
@@ -357,14 +365,12 @@ function rulesOf(library: HardenedLibrary): HardenedRules {
 export function hardenedRules(): HardenedRules {
   const all = LIBRARIES.map((library) => rulesOf(library));
   return {
-    untyped: Object.assign(
-      {},
-      ...all.map((rules) => rules.untyped),
-    ) as Linter.RulesRecord,
-    typed: Object.assign(
-      {},
-      ...all.map((rules) => rules.typed),
-    ) as Linter.RulesRecord,
+    untyped: Object.fromEntries(
+      all.flatMap((rules) => Object.entries(rules.untyped)),
+    ),
+    typed: Object.fromEntries(
+      all.flatMap((rules) => Object.entries(rules.typed)),
+    ),
   };
 }
 
@@ -601,6 +607,31 @@ export const typescriptRuleSettings: Linter.RulesRecord = {
       ],
     },
   ],
+  // A cast that narrows `unknown` or widens a type is a claim the compiler
+  // cannot check; it hides the bug at the cast and shows up far away.
+  '@typescript-eslint/no-unsafe-type-assertion': 'error',
+  // Reports a check TypeScript knows is always true or false: a dead branch,
+  // or a null check on a value that cannot be null (usually a stale type).
+  '@typescript-eslint/no-unnecessary-condition': 'error',
+  // `return handler()` or `x = handler()` of a void call hides that nothing
+  // is returned. The arrow shorthand `onClick={() => handler(x)}` is how event
+  // handlers are written everywhere, so it is allowed.
+  '@typescript-eslint/no-confusing-void-expression': [
+    'error',
+    { ignoreArrowShorthand: true },
+  ],
+  // `count || 0` turns a real 0 into the default; `??` replaces only null and
+  // undefined. For strings `title || url` deliberately falls back on an empty
+  // string too, so string operands are not reported.
+  '@typescript-eslint/prefer-nullish-coalescing': [
+    'error',
+    { ignorePrimitives: { string: true } },
+  ],
+  // A shadowed variable is read for the wrong one. The base rule does not
+  // understand TypeScript (types, enums, overloads), so this one replaces it.
+  // hoist 'functions' reports shadowing of a function declared later, which is
+  // hoisted and usable, but not of a const declared later (not usable yet).
+  '@typescript-eslint/no-shadow': ['error', { hoist: 'functions' }],
   // `any` leaking into typed code. Most findings come from a few untyped
   // imports; type those once and the rest follows.
   '@typescript-eslint/no-unsafe-argument': 'error',
@@ -611,9 +642,6 @@ export const typescriptRuleSettings: Linter.RulesRecord = {
   '@typescript-eslint/no-unsafe-member-access': 'error',
   '@typescript-eslint/no-unsafe-return': 'error',
 };
-
-const NOT_DECIDED =
-  'Not decided yet: the findings are listed in mridang/eslint-defaults#139 and the rule stays off until that review reaches it.';
 
 /**
  * The typescript-eslint rules left off, with the reason. Every rule of the
@@ -684,14 +712,11 @@ export const typescriptExclusions = {
   'prefer-enum-initializers':
     'A style opinion with no benefit that justifies it.',
 
-  // Still to be decided.
-  'strict-void-return': `${NOT_DECIDED} Leaning off: 167 findings of mostly idiomatic code (promisify(exec), Jest mocks), and the promise cases are covered by no-misused-promises and no-floating-promises.`,
-  'no-unsafe-type-assertion': NOT_DECIDED,
-  'require-await': NOT_DECIDED,
-  'no-confusing-void-expression': NOT_DECIDED,
-  'prefer-nullish-coalescing': NOT_DECIDED,
-  'no-unnecessary-condition': NOT_DECIDED,
-  'no-shadow': NOT_DECIDED,
+  // Judged and kept off, with the measurement behind each.
+  'require-await':
+    'Contradicts @typescript-eslint/promise-function-async, which is on: one requires async on a function that returns a promise, the other reports an async function without await; its only fix drops async, which breaks types and raises await-thenable (measured: chowdown tsc errors 4 to 421, broadsheet 0 to 235).',
+  'strict-void-return':
+    'Its only fix adds void, which no-void and sonarjs/void-use then report; the one real hazard, an async callback, is already reported by no-misused-promises; 85% of its findings are returned unsubscribe functions and mocks in tests.',
 };
 
 /**
@@ -700,13 +725,12 @@ export const typescriptExclusions = {
  * @returns The rule names, with the plugin prefix.
  */
 export function typescriptTypedRules(): string[] {
-  const rules = (typescriptPlugin.rules ?? {}) as Record<
-    string,
-    { meta?: RuleMeta }
-  >;
-  return Object.keys(typescriptRuleSettings).filter(
-    (name) =>
-      rules[name.replace('@typescript-eslint/', '')]?.meta?.docs
-        ?.requiresTypeChecking,
+  const typed = new Set(
+    Object.entries(typescriptPlugin.rules)
+      .filter(([, rule]) => needsTypes(rule))
+      .map(([name]) => name),
+  );
+  return Object.keys(typescriptRuleSettings).filter((name) =>
+    typed.has(name.replace('@typescript-eslint/', '')),
   );
 }

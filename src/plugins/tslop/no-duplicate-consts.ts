@@ -28,7 +28,7 @@ const isSign = (operator: string): boolean =>
 
 const isSignedNumber = (
   node: TSESTree.Node,
-): node is TSESTree.UnaryExpression =>
+): node is TSESTree.UnaryExpression & { argument: TSESTree.NumberLiteral } =>
   node.type === AST_NODE_TYPES.UnaryExpression &&
   isSign(node.operator) &&
   node.argument.type === AST_NODE_TYPES.Literal &&
@@ -48,9 +48,7 @@ const propertyKey = (
   if (property.key.type === AST_NODE_TYPES.Identifier) {
     return property.key.name;
   }
-  return property.key.type === AST_NODE_TYPES.Literal
-    ? String(property.key.value)
-    : null;
+  return String(property.key.value);
 };
 
 const staticValue = (node: TSESTree.Node): string | null => {
@@ -62,7 +60,7 @@ const staticValue = (node: TSESTree.Node): string | null => {
       ? JSON.stringify([
           'literal',
           'string',
-          node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw ?? '',
+          node.quasis.at(0)?.value.cooked ?? '',
         ])
       : null;
   }
@@ -70,7 +68,7 @@ const staticValue = (node: TSESTree.Node): string | null => {
     return JSON.stringify([
       'literal',
       'number',
-      `${node.operator}${String((node.argument as TSESTree.NumberLiteral).value)}`,
+      `${node.operator}${String(node.argument.value)}`,
     ]);
   }
   if (node.type === AST_NODE_TYPES.ArrayExpression) {
@@ -102,9 +100,7 @@ const registry = new Map<string, Set<string>>();
 
 /** The name of an all-caps `const` binding, or null for any other declarator. */
 const constantName = (node: TSESTree.VariableDeclarator): string | null => {
-  const isConst =
-    node.parent.type === AST_NODE_TYPES.VariableDeclaration &&
-    node.parent.kind === 'const';
+  const isConst = node.parent.kind === 'const';
   return isConst &&
     node.id.type === AST_NODE_TYPES.Identifier &&
     ALL_CAPS.test(node.id.name)

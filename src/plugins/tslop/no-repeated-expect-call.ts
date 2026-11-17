@@ -7,6 +7,7 @@ import {
   report,
   resolveVariable,
   textOf,
+  asEslintNode,
 } from './shared/rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 import type { AST, Rule } from 'eslint';
@@ -99,11 +100,11 @@ const assertionCall = (
 };
 
 const isTrailingComma = (tokens: AST.Token[], index: number): boolean => {
-  const token = tokens[index];
-  const before = tokens[index - 1]?.value;
+  const token = tokens.at(index);
+  const before = tokens.at(index - 1)?.value;
   return (
     token?.value === ',' &&
-    CLOSING.has(tokens[index + 1]?.value ?? '') &&
+    CLOSING.has(tokens.at(index + 1)?.value ?? '') &&
     before !== '[' &&
     before !== ','
   );
@@ -122,10 +123,10 @@ const sameCall = (
   }
   const { sourceCode } = context;
   const leftTokens = withoutTrailingCommas(
-    sourceCode.getTokens(left as unknown as Rule.Node),
+    sourceCode.getTokens(asEslintNode(left)),
   );
   const rightTokens = withoutTrailingCommas(
-    sourceCode.getTokens(right as unknown as Rule.Node),
+    sourceCode.getTokens(asEslintNode(right)),
   );
   return (
     leftTokens.length === rightTokens.length &&

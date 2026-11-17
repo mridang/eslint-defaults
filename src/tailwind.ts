@@ -5,7 +5,7 @@ import tailwindV3 from 'eslint-plugin-tailwindcss-v3';
 import tailwindV4 from 'eslint-plugin-tailwindcss';
 
 import { projectCssWhitelist } from './css-classes.js';
-import { normalizeConfig } from './utilities.js';
+import { definedRules, normalizeConfig, stringField } from './utilities.js';
 import type { ESLint, Linter } from 'eslint';
 
 /** What the Tailwind lint plugin contributes to a project: nothing, or a plugin with its rules and settings. */
@@ -73,10 +73,11 @@ export async function findTailwindCssEntry(
 export function tailwindMajorVersion(cwd: string): number | undefined {
   try {
     const projectRequire = createRequire(path.join(cwd, 'package.json'));
-    const { version } = projectRequire('tailwindcss/package.json') as {
-      version?: string;
-    };
-    const major = Number.parseInt(version?.split('.', 1)[0] ?? '', 10);
+    const manifest: unknown = projectRequire('tailwindcss/package.json');
+    const major = Number.parseInt(
+      stringField(manifest, 'version').split('.', 1)[0] ?? '',
+      10,
+    );
     return Number.isNaN(major) ? undefined : major;
   } catch {
     return undefined;
@@ -87,12 +88,7 @@ export function tailwindMajorVersion(cwd: string): number | undefined {
 function recommendedRules(plugin: {
   configs?: Record<string, unknown>;
 }): Readonly<Linter.RulesRecord> {
-  const rules = normalizeConfig(plugin.configs?.recommended).rules ?? {};
-  return Object.fromEntries(
-    Object.entries(rules).flatMap(([name, setting]) =>
-      setting === undefined ? [] : [[name, setting]],
-    ),
-  );
+  return definedRules(normalizeConfig(plugin.configs?.recommended).rules);
 }
 
 /** Helpers the 4.x plugin scans for class names: its own defaults, plus the ones this preset's projects use. */
@@ -130,6 +126,21 @@ const NO_CUSTOM_CLASSNAME = 'tailwindcss/no-custom-classname';
  * Tailwind's nor the project's (a typo) is reported. The severity and any
  * options the plugin recommends are kept; the rule is never switched off.
  */
+/** The options object of a rule entry, or an empty one when there is none. */
+function entryOptions(value: unknown): Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null
+    ? Object.fromEntries(Object.entries(value))
+    : {};
+}
+
+/** The class names an options object already whitelists. */
+function whitelistOf(options: Readonly<Record<string, unknown>>): string[] {
+  const { whitelist } = options;
+  return Array.isArray(whitelist)
+    ? whitelist.filter((name): name is string => typeof name === 'string')
+    : [];
+}
+
 async function withProjectClasses(
   rules: Readonly<Linter.RulesRecord>,
   cwd: string,
@@ -143,9 +154,9 @@ async function withProjectClasses(
     return rules;
   }
   const [severity, options] = Array.isArray(setting)
-    ? [setting[0], (setting[1] ?? {}) as { whitelist?: string[] }]
+    ? [setting[0], entryOptions(setting[1])]
     : [setting, {}];
-  const merged = new Set((options.whitelist ?? []).concat(whitelist));
+  const merged = new Set(whitelistOf(options).concat(whitelist));
   return {
     ...rules,
     [NO_CUSTOM_CLASSNAME]: [
@@ -191,18 +202,16 @@ export async function tailwindSupport(
   }
   if (major <= 3) {
     return {
-      plugin: tailwindV3 as ESLint.Plugin,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- the plugin ships no types, so its value is any
+      plugin: tailwindV3,
       rules: recommendedRules(tailwindV3),
       settings: V3_SETTINGS,
     };
   }
   const cssConfigPath = await findTailwindCssEntry(cwd);
   return {
-    plugin: tailwindV4 as ESLint.Plugin,
+    plugin: tailwindV4,
     rules: cssConfigPath
       ? await withProjectClasses(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- the plugin ships no types, so its value is any
           { ...recommendedRules(tailwindV4), ...V4_DISABLED_RULES },
           cwd,
         )

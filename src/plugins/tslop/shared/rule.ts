@@ -1,6 +1,7 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
 import type { TSESTree } from '@typescript-eslint/types';
 import type { Rule, Scope } from 'eslint';
+import type { Node } from 'estree';
 
 /** Any function-like node that can carry parameters and a return type. */
 export type FunctionNode =
@@ -55,13 +56,30 @@ interface RuleDefinition {
 export function defineRule(definition: RuleDefinition): Rule.RuleModule {
   return {
     meta: definition.meta,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the visitors take TypeScript-ESTree nodes, which ESLint's plain ESTree listener type cannot express
     create: (context) => definition.create(context) as Rule.RuleListener,
   };
 }
 
 /** What ESLint reports a node as. */
-const asEslintNode = (node: TSESTree.Node): Rule.Node =>
-  node as unknown as Rule.Node;
+export function asEslintNode(node: TSESTree.Node): Rule.Node {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- ESLint types nodes as ESTree and the TypeScript parser produces TSESTree nodes; the two type families do not overlap
+  return node as unknown as Rule.Node;
+}
+
+/** What the TypeScript parser produced for a node ESLint hands out as plain ESTree. */
+export function asTypeScript<T extends TSESTree.Node>(node: Node): T {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- ESLint's scope and reference types are ESTree; with the TypeScript parser they are TSESTree nodes
+  return node as unknown as T;
+}
+
+/** The options of a rule, whose shape its schema has already validated. */
+export function ruleOptions<T extends object>(
+  context: Rule.RuleContext,
+): Partial<T> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- ESLint types rule options as any; the rule's schema validates this shape
+  return (context.options[0] ?? {}) as Partial<T>;
+}
 
 /** Reports a node under a message id. */
 export function report(
@@ -108,7 +126,7 @@ export function isGlobalReference(
 
 /** The syntax node of a definition. */
 export function definitionNode(definition: Scope.Definition): TSESTree.Node {
-  // eslint's Definition types `node` as any; it is a TypeScript-ESTree node.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- eslint's Definition types `node` as any; it is a TypeScript-ESTree node
   return definition.node as TSESTree.Node;
 }
 
@@ -116,9 +134,10 @@ export function definitionNode(definition: Scope.Definition): TSESTree.Node {
 export function definitionParent(
   definition: Scope.Definition,
 ): TSESTree.Node | null {
-  return (
-    (definition.parent as unknown as TSESTree.Node | null | undefined) ?? null
-  );
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- eslint types `parent` as an ESTree node; it is a TypeScript-ESTree node
+  const parent = definition.parent as unknown as
+    TSESTree.Node | null | undefined;
+  return parent ?? null;
 }
 
 /** Whether two references name the same syntax node. */
@@ -129,7 +148,7 @@ export const isSameNode = (
 
 /** The program node of the file being linted. */
 export function programOf(context: Rule.RuleContext): TSESTree.Program {
-  // SAFETY: with the TypeScript parser every node of the tree is a TSESTree node.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- with the TypeScript parser every node of the tree is a TSESTree node
   return context.sourceCode.ast as unknown as TSESTree.Program;
 }
 
@@ -181,7 +200,7 @@ export function childNodes(
   node: TSESTree.Node,
   keys: Readonly<Record<string, readonly string[]>>,
 ): readonly TSESTree.Node[] {
-  // SAFETY: the visitor keys name only the child-node properties of a node.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- a node has no index signature; the visitor keys name only its child-node properties
   const fields = node as unknown as Readonly<Record<string, unknown>>;
   return (keys[node.type] ?? []).flatMap((key): readonly TSESTree.Node[] => {
     const value = fields[key];

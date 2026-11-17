@@ -1,5 +1,10 @@
 import { AST_NODE_TYPES } from '@typescript-eslint/types';
-import { definitionNode, resolveVariable, unwrapExpression } from './rule.js';
+import {
+  asTypeScript,
+  definitionNode,
+  resolveVariable,
+  unwrapExpression,
+} from './rule.js';
 import type { TSESTree } from '@typescript-eslint/types';
 import type { Rule, Scope } from 'eslint';
 
@@ -91,7 +96,6 @@ function declaredConstInitializer(
   }
   const declaration = node.parent;
   return node.id.type === AST_NODE_TYPES.Identifier &&
-    declaration.type === AST_NODE_TYPES.VariableDeclaration &&
     declaration.kind === 'const'
     ? node.init
     : null;
@@ -139,7 +143,7 @@ export function isKnownArrayExpression(
   const annotation = variable.identifiers
     .map(
       (identifier) =>
-        (identifier as unknown as TSESTree.Identifier).typeAnnotation
+        asTypeScript<TSESTree.Identifier>(identifier).typeAnnotation
           ?.typeAnnotation,
     )
     .find((candidate) => candidate !== undefined);

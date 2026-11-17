@@ -22,6 +22,7 @@ import { parseArgs } from 'node:util';
 import { fixupPluginRules } from '@eslint/compat';
 import typescriptParser from '@typescript-eslint/parser';
 import { ESLint, Linter } from 'eslint';
+import { fieldOf, stringField } from '../src/utilities.js';
 
 /** Whether a path exists. */
 async function exists(target: string): Promise<boolean> {
@@ -550,27 +551,31 @@ interface LoadedLibrary {
  * @param packageDir
  */
 async function entryPoint(packageDir: string): Promise<string> {
-  const manifest = JSON.parse(
+  const manifest: unknown = JSON.parse(
     await fs.readFile(path.join(packageDir, 'package.json'), 'utf8'),
-  ) as { exports?: unknown; main?: string };
+  );
   const pick = (target: unknown): string | undefined => {
     if (typeof target === 'string') {
       return target;
     }
     if (target && typeof target === 'object') {
-      const conditions = target as Record<string, unknown>;
       return ['import', 'node', 'default', 'require']
-        .map((key) => pick(conditions[key]))
+        .map((key) => pick(fieldOf(target, key)))
         .find(Boolean);
     }
     return undefined;
   };
-  const exported = manifest.exports as Record<string, unknown> | undefined;
+  const exported = fieldOf(manifest, 'exports');
   const root =
-    exported && Object.keys(exported).some((key) => key.startsWith('.'))
-      ? exported['.']
+    typeof exported === 'object' &&
+    exported !== null &&
+    Object.keys(exported).some((key) => key.startsWith('.'))
+      ? fieldOf(exported, '.')
       : exported;
-  return path.join(packageDir, pick(root) ?? manifest.main ?? 'index.js');
+  return path.join(
+    packageDir,
+    pick(root) ?? (stringField(manifest, 'main') || 'index.js'),
+  );
 }
 
 /**
@@ -612,9 +617,10 @@ async function installPlugins(
       ],
       { cwd: cacheDir, stdio: 'inherit' },
     );
-    const [code] = (await once(install, 'close')) as [number | null];
+    const closed: unknown[] = await once(install, 'close');
+    const code = closed.at(0);
     if (code !== 0) {
-      throw new Error(`npm install exited with ${code}`);
+      throw new Error(`npm install exited with ${String(code)}`);
     }
   }
 }
@@ -629,32 +635,34 @@ async function loadLibrary(
 ): Promise<LoadedLibrary> {
   const packageDir = path.join(cacheDir, 'node_modules', definition.pkg);
   try {
-    const version = (
+    const version = stringField(
       JSON.parse(
         await fs.readFile(path.join(packageDir, 'package.json'), 'utf8'),
-      ) as { version: string }
-    ).version;
+      ),
+      'version',
+    );
     // eslint-disable-next-line no-unsanitized/method -- loads a plugin this script installed
-    const loaded = (await import(
+    const loaded: unknown = await import(
       pathToFileURL(await entryPoint(packageDir)).href
-    )) as { default?: ESLint.Plugin } & ESLint.Plugin;
-    const plugin = loaded.default?.rules ? loaded.default : loaded;
-    const rules = (plugin.rules ?? {}) as Record<string, unknown>;
-    const descriptors = Object.entries(rules).map(([name, rule]) => {
-      const meta = (rule as { meta?: Record<string, unknown> }).meta ?? {};
-      const documentation = (meta.docs ?? {}) as Record<string, unknown>;
-      return {
-        name,
-        description:
-          typeof documentation.description === 'string'
-            ? documentation.description
-            : '',
-        deprecated: Boolean(meta.deprecated),
-        typed:
-          Boolean(documentation.requiresTypeChecking) ||
-          Boolean(definition.typedRules?.includes(name)),
-      };
-    });
+    );
+    const defaultExport = fieldOf(loaded, 'default');
+    const candidate = fieldOf(defaultExport, 'rules') ? defaultExport : loaded;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- a plugin loaded by path has no static type; every library in the list is an ESLint plugin
+    const plugin = candidate as ESLint.Plugin;
+    const descriptors = Object.entries(plugin.rules ?? {}).map(
+      ([name, rule]) => {
+        const meta = fieldOf(rule, 'meta');
+        const documentation = fieldOf(meta, 'docs');
+        return {
+          name,
+          description: stringField(documentation, 'description'),
+          deprecated: Boolean(fieldOf(meta, 'deprecated')),
+          typed:
+            Boolean(fieldOf(documentation, 'requiresTypeChecking')) ||
+            Boolean(definition.typedRules?.includes(name)),
+        };
+      },
+    );
     return {
       definition,
       version,
@@ -761,10 +769,11 @@ function lintConfig(
       library.plugin!,
     ]),
   );
-  const settings = Object.assign(
-    {},
-    ...withPlugin.map((library) => library.definition.settings),
-  ) as Record<string, unknown>;
+  const settings: Record<string, unknown> = Object.fromEntries(
+    withPlugin.flatMap((library) =>
+      Object.entries(library.definition.settings ?? {}),
+    ),
+  );
   const enabled = Object.fromEntries(
     withPlugin.flatMap((library) =>
       (rules.get(library.definition.id) ?? [])
