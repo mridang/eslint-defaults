@@ -621,6 +621,8 @@ const NOT_DECIDED =
  * here, and a test enforces that.
  */
 export const typescriptExclusions = {
+  'no-unsafe-class-instance-assignment':
+    'New in typescript-eslint 8.73: not yet measured across the repositories, so it is left off until the rule-impact run has counted its findings.',
   // Judged and kept off.
   'no-magic-numbers':
     'Reports every bare number, including 0, 1, 2 and HTTP status codes: 29,067 findings across the repositories, 72% of them in tests, and no auto-fix. Making it useful means ignoring most of what it checks.',
