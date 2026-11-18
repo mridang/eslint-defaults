@@ -29,3 +29,7 @@ node_modules
 *.jpeg
 *.gif
 *.svg
+
+# Local rule-impact measuring tool (not part of the package)
+/etc
+/.cf.tmp.mjs
